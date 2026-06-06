@@ -408,11 +408,7 @@ function AssetTable({ assets, expandedId, onToggle }) {
 }
 
 const BrandMark = () => (
-  <svg className="brand-mark-svg" viewBox="0 0 36 36" fill="none">
-    <rect width="36" height="36" rx="6" fill="rgba(56,189,248,0.15)" stroke="rgba(56,189,248,0.4)" strokeWidth="1.5"/>
-    <path d="M8 24 L18 12 L28 24" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-    <circle cx="18" cy="12" r="2.5" fill="var(--accent)"/>
-  </svg>
+  <img src="/logo.png" alt="ST Engineering" className="brand-mark-img" />
 );
 
 function Header({ stats }) {
