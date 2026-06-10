@@ -105,7 +105,14 @@ const EMPTY_FILTERS = () => ({
 
 function FilterPane({ filters, setFilters, resultCount, total, allAssets, onSelectAsset }) {
   const [sugOpen, setSugOpen] = useState(false);
+  const [locSearch, setLocSearch] = useState("");
   const q = filters.search.trim().toLowerCase();
+
+  const dynamicAircraft = useMemo(() => [...new Set(allAssets.map((a) => a.aircraftType))].sort(), [allAssets]);
+  const dynamicLocations = useMemo(() => [...new Set(allAssets.map((a) => a.location).filter(Boolean))].sort(), [allAssets]);
+  const filteredLocs = locSearch
+    ? dynamicLocations.filter((l) => l.toLowerCase().includes(locSearch.toLowerCase()))
+    : dynamicLocations;
   const suggestions = q
     ? allAssets.filter((a) =>
         (a.assetNumber + " " + a.partNumber + " " + a.initialPartNumber + " " + a.description)
@@ -164,7 +171,7 @@ function FilterPane({ filters, setFilters, resultCount, total, allAssets, onSele
 
       <div className="filter-scroll">
         <FilterGroup title="Aircraft type" count={filters.aircraft.size || null}>
-          {FILTER_OPTIONS.aircraft.map((a) => (
+          {dynamicAircraft.map((a) => (
             <CheckRow key={a} label={a} checked={filters.aircraft.has(a)} onChange={() => toggle("aircraft", a)} />
           ))}
         </FilterGroup>
@@ -185,11 +192,25 @@ function FilterPane({ filters, setFilters, resultCount, total, allAssets, onSele
               onChange={() => toggle("engagement", e)} />
           ))}
         </FilterGroup>
-        <FilterGroup title="Location" count={filters.location.size || null}>
-          {FILTER_OPTIONS.location.map((l) => (
-            <CheckRow key={l} label={l} checked={filters.location.has(l)} onChange={() => toggle("location", l)} />
-          ))}
-        </FilterGroup>
+        <div className="filter-group">
+          <div className="filter-group-head">
+            <span>Location</span>
+            {filters.location.size > 0 && <span className="filter-count">{filters.location.size}</span>}
+          </div>
+          {dynamicLocations.length > 6 && (
+            <div className="filter-group-search">
+              <input className="fgs-input" placeholder="Search…" value={locSearch}
+                onChange={(e) => setLocSearch(e.target.value)} />
+              {locSearch && <button className="fgs-clear" onClick={() => setLocSearch("")}>×</button>}
+            </div>
+          )}
+          <div className="filter-group-body">
+            {filteredLocs.map((l) => (
+              <CheckRow key={l} label={l} checked={filters.location.has(l)} onChange={() => toggle("location", l)} />
+            ))}
+            {filteredLocs.length === 0 && <div className="fgs-empty">No match</div>}
+          </div>
+        </div>
       </div>
 
       <div className="filter-foot">Showing <strong>{resultCount}</strong> of {total} assets</div>
