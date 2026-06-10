@@ -44,6 +44,38 @@ function Field({ label, hint, children, span, req }) {
     <label>{label}{req && <span className="req"> *</span>}</label>{children}{hint && <span className="field-hint">{hint}</span>}</div>;
 }
 
+/* city picker — themed suggestion list that only opens once typing has
+   narrowed the 3,000+ airports down to 7 or fewer matches */
+function CityInput({ value, onChange, className, placeholder }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const q = (value || "").trim().toLowerCase();
+  const matches = q ? CITY_NAMES.filter((c) => c.toLowerCase().includes(q)) : [];
+  const exact = matches.length === 1 && matches[0].toLowerCase() === q;
+  const show = open && q.length > 0 && matches.length > 0 && matches.length <= 7 && !exact;
+  return (
+    <div className="city-ac" ref={ref}>
+      <input className={className || "input"} value={value || ""} placeholder={placeholder || "Start typing a city…"}
+        autoComplete="off"
+        onFocus={() => setOpen(true)}
+        onChange={(e) => { setOpen(true); onChange(e.target.value); }} />
+      {show && (
+        <ul className="city-ac-list">
+          {matches.map((c) => (
+            <li key={c} className="city-ac-item"
+              onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false); }}>{c}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = useState("pool");
   const def = EVENT_TYPES.find((t) => t.id === typeId);
@@ -94,8 +126,7 @@ function EventLogger({ asset, onAppend }) {
         <Field label="Date" req><input type="date" className="input mono" value={f.date} onChange={(e) => set("date", e.target.value)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
         {has("to") && <Field label={def.cat === "out" ? "To (customer city)" : def.cat === "move" ? "To (hub)" : "Location / hub"} req>
-          <input className={cls("to")} list="city-list" value={f.to} onChange={(e) => set("to", e.target.value)} placeholder={`Type or select ${def.cat === "out" ? "destination city" : "location"}…`} autoComplete="off" />
-          <datalist id="city-list">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+          <CityInput className={cls("to")} value={f.to} onChange={(v) => set("to", v)} placeholder={`Type ${def.cat === "out" ? "destination city" : "location"}…`} />
         </Field>}
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
           <input className={cls("customer")} list="cust-list" value={f.customer} onChange={(e) => set("customer", e.target.value)} placeholder="Customer" />
@@ -209,9 +240,8 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
                           onBlur={(ev2) => tryEditDate(idx, ev2.target.value)} />
                       </label>
                       {fhas("to") && <label>{eDef.cat === "out" ? "Customer city" : "Location"}
-                        <input className="input" list="city-list-inline" defaultValue={e.to || ""} placeholder="Type or select city…" autoComplete="off"
-                          onBlur={(ev2) => onEditEvent(idx, { to: ev2.target.value })} />
-                        <datalist id="city-list-inline">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+                        <CityInput className="input" value={e.to || ""} placeholder="Type city…"
+                          onChange={(v) => onEditEvent(idx, { to: v })} />
                       </label>}
                       {fhas("dailyFee") && <label>Daily fee <input type="number" inputMode="numeric" className="input mono" defaultValue={e.dailyFee || 0}
                         onBlur={(ev2) => onEditEvent(idx, { dailyFee: Number(ev2.target.value) || 0 })} /></label>}
@@ -285,11 +315,12 @@ function RawFields({ asset, onChange }) {
 }
 
 function NewAssetModal({ onClose, onCreate }) {
+  const [suggestedNo] = useState(() => AssetStore.nextNumber());
   const [a, setA] = useState({
-    assetNumber: AssetStore.nextNumber(), aircraftType: "", nacelle: "",
+    assetNumber: "", aircraftType: "", nacelle: "",
     initialPartNumber: "", ownership: "", clp: "", acquisitionValue: "", dailyRate: "",
     depMethod: "Straight-line", depLife: "25", depResidual: "0",
-    description: "", inDate: today(), hub: "", status: "WIP",
+    description: "", inDate: today(), hub: "", status: "",
   });
   const [errs, setErrs] = useState({});
   const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
@@ -302,6 +333,7 @@ function NewAssetModal({ onClose, onCreate }) {
     if (!a.aircraftType.trim()) e.aircraftType = 1;
     if (!a.nacelle) e.nacelle = 1;
     if (!a.ownership) e.ownership = 1;
+    if (!a.status) e.status = 1;
     if (!a.initialPartNumber.trim()) e.initialPartNumber = 1;
     if (a.clp === "" || Number(a.clp) <= 0) e.clp = 1;
     if (!a.inDate) e.inDate = 1;
@@ -340,7 +372,7 @@ function NewAssetModal({ onClose, onCreate }) {
         <div className="modal-head"><h3>Add new asset</h3><button className="icon-btn" onClick={onClose} style={{ fontSize: 20 }}>×</button></div>
         <div className="modal-body">
           <div className="grid2">
-            <Field label="Asset number" req><input className={cx("assetNumber") + " mono"} value={a.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
+            <Field label="Asset number" req hint={`next free number: ${suggestedNo}`}><input className={cx("assetNumber") + " mono"} value={a.assetNumber} placeholder={`e.g. ${suggestedNo}`} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
             <Field label="Ownership" req>
               <select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>
                 <option value="" disabled>— select —</option>
@@ -373,11 +405,15 @@ function NewAssetModal({ onClose, onCreate }) {
                 <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={a.depResidual} onChange={(e) => set("depResidual", e.target.value)} /></Field>
               </React.Fragment>
             )}
-            <Field label="Status" req><select className="select" value={a.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+            <Field label="Status" req>
+              <select className={sx("status")} value={a.status} onChange={(e) => set("status", e.target.value)}>
+                <option value="" disabled>— select —</option>
+                {STATUSES.map((t) => <option key={t}>{t}</option>)}
+              </select>
+            </Field>
             <Field label="Induction date" req><input type="date" className={cx("inDate") + " mono"} value={a.inDate} onChange={(e) => set("inDate", e.target.value)} /></Field>
             <Field label="Hub / location" req>
-              <input className={cx("hub")} list="city-list-modal" value={a.hub} onChange={(e) => set("hub", e.target.value)} placeholder="Type or select city…" autoComplete="off" />
-              <datalist id="city-list-modal">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+              <CityInput className={cx("hub")} value={a.hub} onChange={(v) => set("hub", v)} placeholder="Start typing a city…" />
             </Field>
             <Field label="Description" span hint="auto if left blank"><input className="input" value={a.description} onChange={(e) => set("description", e.target.value)} /></Field>
           </div>

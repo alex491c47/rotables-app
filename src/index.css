@@ -14,6 +14,7 @@
   --shadow: 0 18px 50px -22px rgba(0,0,0,0.8);
 }
 body.theme-light {
+  color-scheme: light;
   --bg: #e9eef5; --bg2: #eef2f8;
   --panel: #ffffff; --panel2: #f6f9fd; --panel3: #eef3f9;
   --border: rgba(15,30,55,0.10); --border2: rgba(15,30,55,0.22);
@@ -28,6 +29,7 @@ html, body { margin: 0; min-height: 100%; }
 /* lock scroll on full-height pages (Dashboard, Editor); Analytics keeps its own scroll */
 html:has(.app), body:has(.app) { overflow: hidden; height: 100%; }
 body {
+  color-scheme: dark; /* native widgets (select popups, date pickers) follow the theme */
   background:
     radial-gradient(1200px 700px at 78% 18%, rgba(56,189,248,0.10), transparent 60%),
     radial-gradient(900px 600px at 10% 90%, rgba(59,130,246,0.07), transparent 55%),
@@ -575,6 +577,25 @@ body.theme-light .btn-primary:hover { color: #fff; }
 .field label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: var(--dim); font-weight: 600; }
 .input, .select, textarea.input { width: 100%; background: var(--bg2); border: 1px solid var(--border2); border-radius: 8px; padding: 8px 11px; color: var(--text); font-family: inherit; font-size: 13px; outline: none; }
 .input:focus, .select:focus, textarea.input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(56,189,248,.12); }
+/* themed select — replace the OS chevron and let the option list follow the theme */
+.select {
+  appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 32px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 L6 6.5 L11 1.5' fill='none' stroke='%2394a3b8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+body.theme-light .select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5 L6 6.5 L11 1.5' fill='none' stroke='%23475569' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+.select option { background: var(--bg2); color: var(--text); }
+/* city autocomplete — themed list below the field, like a real dropdown */
+.city-ac { position: relative; }
+.city-ac-list {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 60; margin: 0; padding: 4px;
+  list-style: none; background: var(--panel2); border: 1px solid var(--border2); border-radius: 10px;
+  box-shadow: var(--shadow); max-height: 240px; overflow-y: auto;
+}
+.city-ac-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; color: var(--text); }
+.city-ac-item:hover { background: var(--row-hover); }
 .input.mono { font-family: "IBM Plex Mono", monospace; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
