@@ -3389,6 +3389,21 @@ EXCHANGE_EXAMPLES.forEach((x) => {
 
 assets.sort((a, b) => a.assetNumber.localeCompare(b.assetNumber));
 
+export const fmtMoney = (n) => {
+  const s = n < 0 ? "-" : ""; n = Math.abs(n);
+  if (n >= 1e9) return s + "$" + (n / 1e9).toFixed(2).replace(/\.?0+$/, "") + "B";
+  if (n >= 1e6) return s + "$" + (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
+  if (n >= 1e3) return s + "$" + Math.round(n / 1e3) + "K";
+  return s + "$" + Math.round(n);
+};
+
+export const fmtDays = (n) => {
+  if (!n) return "0 d";
+  if (n < 365) return n + " d";
+  const y = Math.floor(n / 365), d = n % 365;
+  return y + " yr" + (d > 0 ? " " + d + " d" : "");
+};
+
 export const ASSET_DATA = assets;
 
 export const FILTER_OPTIONS = {

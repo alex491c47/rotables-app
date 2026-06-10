@@ -218,15 +218,29 @@ function FilterPane({ filters, setFilters, resultCount, total, allAssets, onSele
   );
 }
 
-function GlobePanel({ globeRef, selected, stats }) {
+function GlobePanel({ globeRef, selected, stats, allAssets }) {
   const canvasRef = useRef(null);
   useEffect(() => {
     globeRef.current = new AssetGlobe(canvasRef.current);
-    const cities = Object.keys(CITIES).map((name) => ({
+  }, []);
+  // mark only hubs and cities the fleet actually touches — CITIES now holds
+  // thousands of airports for the Editor dropdowns, far too many to draw
+  useEffect(() => {
+    if (!globeRef.current) return;
+    const names = new Set();
+    Object.keys(CITIES).forEach((n) => { if (CITIES[n].type === "hub") names.add(n); });
+    (allAssets || []).forEach((a) => {
+      if (a.location && CITIES[a.location]) names.add(a.location);
+      (a.history || []).forEach((h) => {
+        if (h.from && CITIES[h.from]) names.add(h.from);
+        if (h.to && CITIES[h.to]) names.add(h.to);
+      });
+    });
+    const cities = [...names].map((name) => ({
       lat: CITIES[name].lat, lon: CITIES[name].lon, label: name, kind: CITIES[name].type,
     }));
     globeRef.current.setAllCityMarkers(cities);
-  }, []);
+  }, [allAssets]);
 
   const route = selected
     ? [...new Set(selected.history.flatMap((h) => [h.from, h.to]).filter(Boolean))]
@@ -616,7 +630,7 @@ export default function Dashboard() {
         <FilterPane filters={filters} setFilters={setFilters} resultCount={filtered.length} total={all.length}
           allAssets={all} onSelectAsset={selectAsset} />
         <main className="main-col">
-          <GlobePanel globeRef={globeRef} selected={selected} stats={stats} />
+          <GlobePanel globeRef={globeRef} selected={selected} stats={stats} allAssets={all} />
           <div className="table-section">
             <div className="table-section-head">
               <span className="ts-title">Asset Register</span>
