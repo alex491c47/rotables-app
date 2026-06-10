@@ -289,12 +289,60 @@ function RawFields({ asset, onChange }) {
   );
 }
 
+// Filterable city combobox — used for the "Hub / location" field in new-asset form
+function CityComboBox({ value, onChange, error }) {
+  const [query, setQuery] = useState(value || "");
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  // Close when clicking outside
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const matches = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return HUBS; // show hubs as default suggestions
+    return CITY_NAMES.filter((c) => c.toLowerCase().includes(q)).slice(0, 12);
+  }, [query]);
+
+  const select = (city) => { onChange(city); setQuery(city); setOpen(false); };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <input
+        className={"input" + (error ? " err" : "")}
+        value={query}
+        placeholder="Type to search cities…"
+        onChange={(e) => { setQuery(e.target.value); onChange(""); setOpen(true); }}
+        onFocus={() => setOpen(true)}
+        autoComplete="off"
+      />
+      {open && matches.length > 0 && (
+        <ul className="search-suggest" style={{ position: "absolute", zIndex: 50, width: "100%", margin: 0, top: "calc(100% + 4px)" }}>
+          {matches.map((c) => (
+            <li key={c} className="suggest-item" onMouseDown={() => select(c)}>
+              <span className="suggest-dot" style={{ background: CITIES[c]?.type === "hub" ? "var(--accent)" : "var(--dim)" }} />
+              <span className="suggest-text">
+                <span className="suggest-primary">{c}</span>
+                <span className="suggest-secondary">{CITIES[c]?.country}{CITIES[c]?.type === "hub" ? " · hub" : ""}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function NewAssetModal({ onClose, onCreate }) {
   const [a, setA] = useState({
-    assetNumber: AssetStore.nextNumber(), aircraftType: "B787GENX", nacelle: "Thrust Reverser",
-    initialPartNumber: "", ownership: "Owned", clp: "", acquisitionValue: "", dailyRate: "",
+    assetNumber: AssetStore.nextNumber(), aircraftType: "", nacelle: "",
+    initialPartNumber: "", ownership: "", clp: "", acquisitionValue: "", dailyRate: "",
     depMethod: "Straight-line", depLife: "25", depResidual: "0",
-    description: "", inDate: today(), hub: HUBS[0], status: "WIP",
+    description: "", inDate: today(), hub: "", status: "WIP",
   });
   const [errs, setErrs] = useState({});
   const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
@@ -304,6 +352,9 @@ function NewAssetModal({ onClose, onCreate }) {
   const create = () => {
     const e = {};
     if (!a.assetNumber.trim()) e.assetNumber = 1;
+    if (!a.aircraftType) e.aircraftType = 1;
+    if (!a.nacelle) e.nacelle = 1;
+    if (!a.ownership) e.ownership = 1;
     if (!a.initialPartNumber.trim()) e.initialPartNumber = 1;
     if (a.clp === "" || Number(a.clp) <= 0) e.clp = 1;
     if (!a.inDate) e.inDate = 1;
@@ -343,13 +394,20 @@ function NewAssetModal({ onClose, onCreate }) {
         <div className="modal-body">
           <div className="grid2">
             <Field label="Asset number" req><input className={cx("assetNumber") + " mono"} value={a.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
-            <Field label="Ownership" req><select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>{OWN_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+            <Field label="Ownership" req><select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>
+              <option value="" disabled>— select —</option>
+              {OWN_TYPES.map((t) => <option key={t}>{t}</option>)}
+            </select></Field>
             <Field label="Engine type" req>
               <select className={sx("aircraftType")} value={a.aircraftType} onChange={(e) => set("aircraftType", e.target.value)}>
+                <option value="" disabled>— select —</option>
                 {FILTER_OPTIONS.aircraft.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </Field>
-            <Field label="Component" req><select className={sx("nacelle")} value={a.nacelle} onChange={(e) => set("nacelle", e.target.value)}>{FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}</select></Field>
+            <Field label="Component" req><select className={sx("nacelle")} value={a.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
+              <option value="" disabled>— select —</option>
+              {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}
+            </select></Field>
             <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} placeholder="e.g. TR-GEnx1B-1492" /></Field>
             <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><input type="number" inputMode="numeric" className={cx("clp") + " mono"} value={a.clp} onChange={(e) => set("clp", e.target.value)} /></Field>
             {capitalised && (
@@ -369,9 +427,7 @@ function NewAssetModal({ onClose, onCreate }) {
             <Field label="Status" req><select className="select" value={a.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map((t) => <option key={t}>{t}</option>)}</select></Field>
             <Field label="Induction date" req><input type="date" className={cx("inDate") + " mono"} value={a.inDate} onChange={(e) => set("inDate", e.target.value)} /></Field>
             <Field label="Hub / location" req>
-              <select className={sx("hub")} value={a.hub} onChange={(e) => set("hub", e.target.value)}>
-                {CITY_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
+              <CityComboBox value={a.hub} onChange={(v) => set("hub", v)} error={!!errs.hub} />
             </Field>
             <Field label="Description" span hint="auto if left blank"><input className="input" value={a.description} onChange={(e) => set("description", e.target.value)} /></Field>
           </div>
@@ -499,45 +555,4 @@ export default function Editor() {
                 {AssetStore.isAdded(a.assetNumber) ? <span className="aitem-flag new">new</span>
                   : AssetStore.isEdited(a.assetNumber) ? <span className="aitem-flag">edited</span> : null}
               </div>
-            ))}
-            {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>No matching assets.</div>}
-          </div>
-        </aside>
-
-        <main className="main">
-          {!draft ? (
-            <div className="empty-state">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4"><path d="M4 7h16M4 12h16M4 17h10" /></svg>
-              <div>Select an asset to edit, or <a href="#" onClick={(e) => { e.preventDefault(); setShowNew(true); }} style={{ color: "var(--accent)" }}>add a new one</a>.</div>
-            </div>
-          ) : (
-            <div className="editor">
-              <div className="ed-head">
-                <div>
-                  <div className="ed-title">{draft.assetNumber}</div>
-                  <div className="ed-sub">{draft.description}</div>
-                </div>
-                <div className="ed-head-actions">
-                  <StatusPill status={draft.status} />
-                  {dirty && <span className="dim" style={{ fontSize: 12, color: "var(--wip)" }}>● unsaved</span>}
-                  <button className="btn btn-primary" disabled={!dirty} onClick={save} style={!dirty ? { opacity: .5 } : null}>Save</button>
-                  {AssetStore.isBase(selId) && AssetStore.isEdited(selId) && <button className="btn" onClick={revert}>Revert</button>}
-                  <button className="btn btn-danger btn-sm" onClick={removeAsset}>Remove asset</button>
-                </div>
-              </div>
-
-              {dirty && <div className="banner banner-warn"><span>●</span> Unsaved changes — click <b>Save</b> to persist them and update the Register & Analytics views.</div>}
-
-              <EventLogger asset={draft} onAppend={appendEvent} />
-              <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} />
-              <RawFields asset={draft} onChange={updateDraft} />
-            </div>
-          )}
-        </main>
-      </div>
-
-      {showNew && <NewAssetModal onClose={() => setShowNew(false)} onCreate={createAsset} />}
-      {toast && <div className="toast">{toast}</div>}
-    </div>
-  );
-}
+ 

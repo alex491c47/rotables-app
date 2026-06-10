@@ -246,18 +246,20 @@ export default function Analytics() {
     return MONTHS.map((mn, m) => ({ label: mn, value: AN.weightedUtil(assets, { year, month: m }) }));
   }, [AN, assets, year]);
 
+  // NBV chart uses ALL assets (unfiltered) so the chart always shows the full picture
   const depRows = useMemo(() => {
-    return ALL_TYPES.filter((t) => agg.byType[t] && agg.byType[t].count).map((t) => {
+    return ALL_TYPES.map((t) => {
       let nbvSum = 0, dep = 0;
-      assets.filter((a) => a.aircraftType === t && AN.inServiceBy(a, period)).forEach((a) => {
+      AN.assets.filter((a) => a.aircraftType === t && AN.inServiceBy(a, period)).forEach((a) => {
         const d = AN.nbvAsOf(a, period); nbvSum += d.nbv; dep += d.accumDep;
       });
+      if (!nbvSum && !dep) return null;
       return { label: t, parts: [
         { name: "Net book value", value: nbvSum, color: TYPE_COLOR[t] },
         { name: "Accum. depreciation", value: dep, color: "var(--border2)" },
       ] };
-    });
-  }, [AN, assets, agg, period, ALL_TYPES, TYPE_COLOR]);
+    }).filter(Boolean);
+  }, [AN, period, ALL_TYPES, TYPE_COLOR]);
 
   const rows = useMemo(() => {
     const data = assets.map((a) => {
@@ -455,9 +457,4 @@ export default function Analytics() {
         <p className="assumptions">
           Assumptions — CLP per type/nacelle (2026), straight-line depreciation (Owned 25 yr→0; Long-term lease 40% CLP, 10 yr→0;
           Short-term leased TRs off balance-sheet). Utilisation: lease-days, with exchanges credited 1/6 yr (Thrust Reverser 1/3 yr);
-          portfolio average is NBV-weighted.
-        </p>
-      </main>
-    </div>
-  );
-}
+         
