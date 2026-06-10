@@ -94,9 +94,9 @@ function EventLogger({ asset, onAppend }) {
         <Field label="Date" req><input type="date" className="input mono" value={f.date} onChange={(e) => set("date", e.target.value)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
         {has("to") && <Field label={def.cat === "out" ? "To (customer city)" : def.cat === "move" ? "To (hub)" : "Location / hub"} req>
-          <select className={scls("to")} value={f.to} onChange={(e) => set("to", e.target.value)}>
-            <option value="">Select {def.cat === "out" ? "destination city" : "location"}…</option>
-            {CITY_NAMES.map((c) => <option key={c}>{c}</option>)}</select></Field>}
+          <input className={cls("to")} list="city-list" value={f.to} onChange={(e) => set("to", e.target.value)} placeholder={`Type or select ${def.cat === "out" ? "destination city" : "location"}…`} autoComplete="off" />
+          <datalist id="city-list">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+        </Field>}
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
           <input className={cls("customer")} list="cust-list" value={f.customer} onChange={(e) => set("customer", e.target.value)} placeholder="Customer" />
           <datalist id="cust-list">{CUSTOMERS.map((c) => <option key={c} value={c} />)}</datalist></Field>}
@@ -209,9 +209,10 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
                           onBlur={(ev2) => tryEditDate(idx, ev2.target.value)} />
                       </label>
                       {fhas("to") && <label>{eDef.cat === "out" ? "Customer city" : "Location"}
-                        <select className="select" value={e.to || ""} onChange={(ev2) => onEditEvent(idx, { to: ev2.target.value })}>
-                          {CITY_NAMES.map((c) => <option key={c}>{c}</option>)}
-                        </select></label>}
+                        <input className="input" list="city-list-inline" defaultValue={e.to || ""} placeholder="Type or select city…" autoComplete="off"
+                          onBlur={(ev2) => onEditEvent(idx, { to: ev2.target.value })} />
+                        <datalist id="city-list-inline">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+                      </label>}
                       {fhas("dailyFee") && <label>Daily fee <input type="number" inputMode="numeric" className="input mono" defaultValue={e.dailyFee || 0}
                         onBlur={(ev2) => onEditEvent(idx, { dailyFee: Number(ev2.target.value) || 0 })} /></label>}
                       {fhas("monthlyRevenue") && <label>Monthly rev <input type="number" inputMode="numeric" className="input mono" defaultValue={e.monthlyRevenue || 0}
@@ -251,8 +252,10 @@ function RawFields({ asset, onChange }) {
     <div className="section">
       <h3 className="section-title">Asset details <span className="hint">correct static information</span></h3>
       <div className="grid3">
-        <Field label="Engine type"><select className="select" value={asset.aircraftType} onChange={(e) => set("aircraftType", e.target.value)}>
-          {FILTER_OPTIONS.aircraft.map((t) => <option key={t}>{t}</option>)}</select></Field>
+        <Field label="Engine type">
+          <input className="input" list="aircraft-list-raw" value={asset.aircraftType} onChange={(e) => set("aircraftType", e.target.value)} placeholder="e.g. B787GENX or type new…" autoComplete="off" />
+          <datalist id="aircraft-list-raw">{FILTER_OPTIONS.aircraft.map((t) => <option key={t} value={t} />)}</datalist>
+        </Field>
         <Field label="Component"><select className="select" value={asset.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
           {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}</select></Field>
         <Field label="Ownership"><select className="select" value={asset.ownership || "Owned"} onChange={(e) => set("ownership", e.target.value)}>
@@ -336,7 +339,10 @@ function NewAssetModal({ onClose, onCreate }) {
           <div className="grid2">
             <Field label="Asset number" req><input className={cx("assetNumber") + " mono"} value={a.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
             <Field label="Ownership" req><select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>{OWN_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
-            <Field label="Engine type" req><select className={sx("aircraftType")} value={a.aircraftType} onChange={(e) => set("aircraftType", e.target.value)}>{FILTER_OPTIONS.aircraft.map((t) => <option key={t}>{t}</option>)}</select></Field>
+            <Field label="Engine type" req>
+              <input className={cx("aircraftType")} list="aircraft-list" value={a.aircraftType} onChange={(e) => set("aircraftType", e.target.value)} placeholder="e.g. B787GENX or type new…" autoComplete="off" />
+              <datalist id="aircraft-list">{FILTER_OPTIONS.aircraft.map((t) => <option key={t} value={t} />)}</datalist>
+            </Field>
             <Field label="Component" req><select className={sx("nacelle")} value={a.nacelle} onChange={(e) => set("nacelle", e.target.value)}>{FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}</select></Field>
             <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} placeholder="e.g. TR-GEnx1B-1492" /></Field>
             <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><input type="number" inputMode="numeric" className={cx("clp") + " mono"} value={a.clp} onChange={(e) => set("clp", e.target.value)} /></Field>
@@ -356,7 +362,10 @@ function NewAssetModal({ onClose, onCreate }) {
             )}
             <Field label="Status" req><select className="select" value={a.status} onChange={(e) => set("status", e.target.value)}>{STATUSES.map((t) => <option key={t}>{t}</option>)}</select></Field>
             <Field label="Induction date" req><input type="date" className={cx("inDate") + " mono"} value={a.inDate} onChange={(e) => set("inDate", e.target.value)} /></Field>
-            <Field label="Hub / location" req><select className={sx("hub")} value={a.hub} onChange={(e) => set("hub", e.target.value)}>{CITY_NAMES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+            <Field label="Hub / location" req>
+              <input className={cx("hub")} list="city-list-modal" value={a.hub} onChange={(e) => set("hub", e.target.value)} placeholder="Type or select city…" autoComplete="off" />
+              <datalist id="city-list-modal">{CITY_NAMES.map((c) => <option key={c} value={c} />)}</datalist>
+            </Field>
             <Field label="Description" span hint="auto if left blank"><input className="input" value={a.description} onChange={(e) => set("description", e.target.value)} /></Field>
           </div>
         </div>
