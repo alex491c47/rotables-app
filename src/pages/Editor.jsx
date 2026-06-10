@@ -44,9 +44,11 @@ function Field({ label, hint, children, span, req }) {
     <label>{label}{req && <span className="req"> *</span>}</label>{children}{hint && <span className="field-hint">{hint}</span>}</div>;
 }
 
-/* city picker — themed suggestion list that only opens once typing has
-   narrowed the 3,000+ airports down to 7 or fewer matches */
-function CityInput({ value, onChange, className, placeholder }) {
+/* themed suggestion input — a text field with a dropdown that matches the app.
+   showAll: list opens on focus with every option (short lists like engine types).
+   Otherwise the list only opens once typing has narrowed the options to ≤7
+   matches (long lists like the 3,000+ airports). Free text is always allowed. */
+function SuggestInput({ value, onChange, options, showAll, className, placeholder }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -55,12 +57,12 @@ function CityInput({ value, onChange, className, placeholder }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
   const q = (value || "").trim().toLowerCase();
-  const matches = q ? CITY_NAMES.filter((c) => c.toLowerCase().includes(q)) : [];
+  const matches = q ? options.filter((c) => c.toLowerCase().includes(q)) : (showAll ? options : []);
   const exact = matches.length === 1 && matches[0].toLowerCase() === q;
-  const show = open && q.length > 0 && matches.length > 0 && matches.length <= 7 && !exact;
+  const show = open && matches.length > 0 && !exact && (showAll || (q.length > 0 && matches.length <= 7));
   return (
     <div className="city-ac" ref={ref}>
-      <input className={className || "input"} value={value || ""} placeholder={placeholder || "Start typing a city…"}
+      <input className={className || "input"} value={value || ""} placeholder={placeholder}
         autoComplete="off"
         onFocus={() => setOpen(true)}
         onChange={(e) => { setOpen(true); onChange(e.target.value); }} />
@@ -75,6 +77,7 @@ function CityInput({ value, onChange, className, placeholder }) {
     </div>
   );
 }
+const CityInput = (props) => <SuggestInput options={CITY_NAMES} placeholder="Start typing a city…" {...props} />;
 
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = useState("pool");
@@ -282,9 +285,9 @@ function RawFields({ asset, onChange }) {
     <div className="section">
       <h3 className="section-title">Asset details <span className="hint">correct static information</span></h3>
       <div className="grid3">
-        <Field label="Engine type">
-          <input className="input" list="aircraft-list-raw" value={asset.aircraftType} onChange={(e) => set("aircraftType", e.target.value)} placeholder="e.g. B787GENX or type new…" autoComplete="off" />
-          <datalist id="aircraft-list-raw">{FILTER_OPTIONS.aircraft.map((t) => <option key={t} value={t} />)}</datalist>
+        <Field label="A/C+Engine">
+          <SuggestInput className="input" options={FILTER_OPTIONS.aircraft} showAll
+            value={asset.aircraftType} onChange={(v) => set("aircraftType", v)} placeholder="Select or type new…" />
         </Field>
         <Field label="Component"><select className="select" value={asset.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
           {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}</select></Field>
@@ -315,7 +318,6 @@ function RawFields({ asset, onChange }) {
 }
 
 function NewAssetModal({ onClose, onCreate }) {
-  const [suggestedNo] = useState(() => AssetStore.nextNumber());
   const [a, setA] = useState({
     assetNumber: "", aircraftType: "", nacelle: "",
     initialPartNumber: "", ownership: "", clp: "", acquisitionValue: "", dailyRate: "",
@@ -372,16 +374,16 @@ function NewAssetModal({ onClose, onCreate }) {
         <div className="modal-head"><h3>Add new asset</h3><button className="icon-btn" onClick={onClose} style={{ fontSize: 20 }}>×</button></div>
         <div className="modal-body">
           <div className="grid2">
-            <Field label="Asset number" req hint={`next free number: ${suggestedNo}`}><input className={cx("assetNumber") + " mono"} value={a.assetNumber} placeholder={`e.g. ${suggestedNo}`} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
+            <Field label="Asset number" req><input className={cx("assetNumber") + " mono"} value={a.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
             <Field label="Ownership" req>
               <select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>
                 <option value="" disabled>— select —</option>
                 {OWN_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
             </Field>
-            <Field label="Engine type" req>
-              <input className={cx("aircraftType")} list="aircraft-list" value={a.aircraftType} onChange={(e) => set("aircraftType", e.target.value)} placeholder="e.g. B787GENX or type new…" autoComplete="off" />
-              <datalist id="aircraft-list">{FILTER_OPTIONS.aircraft.map((t) => <option key={t} value={t} />)}</datalist>
+            <Field label="A/C+Engine" req>
+              <SuggestInput className={cx("aircraftType")} options={FILTER_OPTIONS.aircraft} showAll
+                value={a.aircraftType} onChange={(v) => set("aircraftType", v)} placeholder="Select or type new…" />
             </Field>
             <Field label="Component" req>
               <select className={sx("nacelle")} value={a.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
@@ -389,7 +391,7 @@ function NewAssetModal({ onClose, onCreate }) {
                 {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}
               </select>
             </Field>
-            <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} placeholder="e.g. TR-GEnx1B-1492" /></Field>
+            <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
             <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><input type="number" inputMode="numeric" className={cx("clp") + " mono"} value={a.clp} onChange={(e) => set("clp", e.target.value)} /></Field>
             {capitalised && (
               <Field label="Acquisition value (USD)" req hint="NBV & depreciation are based on this"><input type="number" inputMode="numeric" className={cx("acquisitionValue") + " mono"} value={a.acquisitionValue} onChange={(e) => set("acquisitionValue", e.target.value)} /></Field>
@@ -503,7 +505,7 @@ export default function Editor() {
   const createAsset = (a) => { AssetStore.save(a); setShowNew(false); refresh(); selectAsset(a.assetNumber); flash("Asset created"); };
 
   return (
-    <div className="app">
+    <div className="app editor-page">
       <header className="app-header">
         <div className="brand">
           <div className="brand-mark"><BrandMark /></div>

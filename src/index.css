@@ -596,6 +596,9 @@ body.theme-light .select {
 }
 .city-ac-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; color: var(--text); }
 .city-ac-item:hover { background: var(--row-hover); }
+/* Editor readability — secondary text was too dim against the dark background */
+.editor-page { --text2: #c3d1e3; --dim: #92a8c2; --faint: #71869e; }
+body.theme-light .editor-page { --text2: #324a66; --dim: #5d7088; --faint: #8497ad; }
 .input.mono { font-family: "IBM Plex Mono", monospace; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
