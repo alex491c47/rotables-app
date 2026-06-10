@@ -3171,9 +3171,14 @@ const assets = [];
 let counter = 10000;
 
 AIRCRAFT.forEach((acType, acIdx) => {
-  for (let i = 0; i < 20; i++) {
+  for (let i = 0; i < 6; i++) {
     counter += int(3, 17);
     const nacelle = NACELLES[i % NACELLES.length];
+    // Explicit ownership: A320LEAP Thrust Reversers are short-term lease products;
+    // every 1st and 4th asset of a type is Owned, the rest Long-term lease.
+    const ownership = (acType === "A320LEAP" && nacelle === "Thrust Reverser")
+      ? "Short-term lease"
+      : (i === 0 || i === 3) ? "Owned" : "Long-term lease";
     const prefix = PART_PREFIX[nacelle];
     const engine = ENGINE[acType];
     const pnNum = int(1000, 9899);
@@ -3330,7 +3335,7 @@ AIRCRAFT.forEach((acType, acIdx) => {
     }
 
     assets.push({
-      assetNumber, aircraftType: acType, nacelle,
+      assetNumber, aircraftType: acType, nacelle, ownership,
       partNumber: pn(), initialPartNumber: makePN(prefix, engine, pnNum, 0), pnChanged: mod > 0,
       description, status: finalStatus, previousStatus,
       engagementType: curEngagement, contractYears: curContractYears,
@@ -3393,15 +3398,3 @@ export const FILTER_OPTIONS = {
   engagement: ENGAGEMENTS.filter((e) => e !== "Exchange"),
   location: CITY_NAMES.slice().sort(),
 };
-
-export function fmtMoney(n) {
-  if (!n) return "$0";
-  if (n >= 1e6) return "$" + (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + "M";
-  return "$" + Math.round(n / 1e3) + "K";
-}
-
-export function fmtDays(n) {
-  if (!n) return "—";
-  if (n >= 365) { const y = (n / 365); return y.toFixed(y >= 10 ? 0 : 1) + " yr"; }
-  return n + " d";
-}
