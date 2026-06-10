@@ -6,7 +6,7 @@
    ============================================================ */
 import { ASSET_DATA } from './mockData';
 
-const KEY = "ste_asset_edits_v1";
+const KEY = "ste_asset_edits_hv2";
 const base = ASSET_DATA.slice();
 const baseById = {};
 base.forEach((a) => (baseById[a.assetNumber] = a));
