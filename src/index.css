@@ -25,6 +25,8 @@ body.theme-light {
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
+/* lock scroll on full-height pages (Dashboard, Editor); Analytics keeps its own scroll */
+html:has(.app), body:has(.app) { overflow: hidden; height: 100%; }
 body {
   background:
     radial-gradient(1200px 700px at 78% 18%, rgba(56,189,248,0.10), transparent 60%),
