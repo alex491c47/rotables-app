@@ -409,7 +409,7 @@ export default function Analytics() {
             <Legend items={Object.keys(OWN_COLOR).filter((o) => agg.byOwn[o]).map((o) => ({ name: o, color: OWN_COLOR[o], value: agg.byOwn[o] }))} />
           </Card>
 
-          <Card title="Net book value vs depreciation" sub="by engine type">
+          <Card title="Net book value vs depreciation" sub="by engine type — all assets">
             <StackBar rows={depRows} />
             <Legend items={[{ name: "Net book value", color: "var(--accent)" }, { name: "Accumulated depreciation", color: "var(--border2)" }]} />
           </Card>
@@ -457,4 +457,9 @@ export default function Analytics() {
         <p className="assumptions">
           Assumptions — CLP per type/nacelle (2026), straight-line depreciation (Owned 25 yr→0; Long-term lease 40% CLP, 10 yr→0;
           Short-term leased TRs off balance-sheet). Utilisation: lease-days, with exchanges credited 1/6 yr (Thrust Reverser 1/3 yr);
-         
+          portfolio average is NBV-weighted.
+        </p>
+      </main>
+    </div>
+  );
+}
