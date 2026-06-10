@@ -1463,4 +1463,8 @@ export function fmtMoney(n) {
   return "$" + Math.round(n / 1e3) + "K";
 }
 
-export function fmtDa
+export function fmtDays(n) {
+  if (!n) return "—";
+  if (n >= 365) { const y = (n / 365); return y.toFixed(y >= 10 ? 0 : 1) + " yr"; }
+  return n + " d";
+}
