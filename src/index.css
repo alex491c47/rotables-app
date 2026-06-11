@@ -606,9 +606,33 @@ body.theme-light .select {
 /* themed dropdown button (Picker) — matches the .select look but opens our own list */
 .picker-btn { text-align: left; display: flex; align-items: center; line-height: 1.3; }
 .picker-btn .picker-ph { color: var(--faint); }
+/* themed date picker — replaces the browser's native calendar */
+.date-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; text-align: left; cursor: pointer; line-height: 1.3; }
+.date-btn .picker-ph { color: var(--faint); }
+.date-ico { width: 15px; height: 15px; flex: none; opacity: .55; }
+.cal {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 60; width: 250px;
+  background: var(--panel2); border: 1px solid var(--border2); border-radius: 10px;
+  box-shadow: var(--shadow); padding: 10px;
+}
+.cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.cal-nav { width: 26px; height: 26px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: 7px; cursor: pointer; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.cal-nav:hover { background: var(--row-open); border-color: var(--accent); }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.cal-dow { margin-bottom: 4px; }
+.cal-dow-cell { text-align: center; font-size: 10.5px; color: var(--dim); padding: 2px 0; }
+.cal-empty { height: 30px; }
+.cal-day { height: 30px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; color: var(--text); border-radius: 7px; cursor: pointer; font-size: 12.5px; font-family: inherit; }
+.cal-day:hover { background: var(--row-open); }
+.cal-day.today { box-shadow: inset 0 0 0 1px var(--border2); }
+.cal-day.sel { background: var(--accent); color: #04121f; font-weight: 600; }
+.cal-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
+.cal-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; font-family: inherit; padding: 2px 4px; }
+.cal-link:hover { text-decoration: underline; }
 /* Editor readability — secondary text was too dim against the dark background */
-.editor-page { --text2: #c3d1e3; --dim: #92a8c2; --faint: #71869e; }
-body.theme-light .editor-page { --text2: #324a66; --dim: #5d7088; --faint: #8497ad; }
+.editor-page { --text: #ecf2f9; --text2: #d6e1ee; --dim: #a9bcd0; --faint: #899db4; }
+body.theme-light .editor-page { --text: #0f2138; --text2: #324a66; --dim: #5d7088; --faint: #8497ad; }
 .input.mono { font-family: "IBM Plex Mono", monospace; }
 input[type=number] { -moz-appearance: textfield; appearance: textfield; }
 input[type=number]::-webkit-outer-spin-button, input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }

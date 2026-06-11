@@ -79,6 +79,78 @@ function SuggestInput({ value, onChange, options, showAll, className, placeholde
 }
 const CityInput = (props) => <SuggestInput options={CITY_NAMES} placeholder="Start typing a city…" {...props} />;
 
+/* themed date picker — replaces the browser's native calendar (which can't be
+   styled to match). value/onChange use ISO "YYYY-MM-DD" strings. */
+const CAL_WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
+const CAL_MONTHS = ["January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"];
+function fmtDateDisplay(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return `${String(d).padStart(2, "0")} ${CAL_MONTHS[m - 1].slice(0, 3)} ${y}`;
+}
+function DateField({ value, onChange, className }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const base = value ? value.split("-").map(Number) : null;
+  const todayISO = new Date().toISOString().slice(0, 10);
+  const t = todayISO.split("-").map(Number);
+  const [view, setView] = useState(() => base ? { y: base[0], m: base[1] - 1 } : { y: t[0], m: t[1] - 1 });
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const openCal = () => { if (base) setView({ y: base[0], m: base[1] - 1 }); setOpen(true); };
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+  const firstDow = (new Date(view.y, view.m, 1).getDay() + 6) % 7; // Monday-first
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const shift = (delta) => setView((v) => {
+    const nm = v.m + delta;
+    return { y: v.y + Math.floor(nm / 12), m: ((nm % 12) + 12) % 12 };
+  });
+  const pick = (d) => {
+    onChange(`${view.y}-${String(view.m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`);
+    setOpen(false);
+  };
+  const isSel = (d) => base && base[0] === view.y && base[1] - 1 === view.m && base[2] === d;
+  const isToday = (d) => t[0] === view.y && t[1] - 1 === view.m && t[2] === d;
+  return (
+    <div className="city-ac" ref={ref}>
+      <button type="button" className={(className || "input") + " date-btn"} onClick={openCal}>
+        <span className={value ? "" : "picker-ph"}>{value ? fmtDateDisplay(value) : "Select date…"}</span>
+        <svg className="date-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <rect x="3" y="4.5" width="18" height="17" rx="2.5" /><path d="M3 9h18M8 2.5v4M16 2.5v4" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cal">
+          <div className="cal-head">
+            <button type="button" className="cal-nav" onClick={() => shift(-1)}>‹</button>
+            <span className="cal-title">{CAL_MONTHS[view.m]} {view.y}</span>
+            <button type="button" className="cal-nav" onClick={() => shift(1)}>›</button>
+          </div>
+          <div className="cal-grid cal-dow">
+            {CAL_WEEKDAYS.map((w) => <span key={w} className="cal-dow-cell">{w}</span>)}
+          </div>
+          <div className="cal-grid">
+            {cells.map((d, i) => d === null
+              ? <span key={i} className="cal-empty"></span>
+              : <button type="button" key={i}
+                  className={"cal-day" + (isSel(d) ? " sel" : "") + (isToday(d) ? " today" : "")}
+                  onClick={() => pick(d)}>{d}</button>)}
+          </div>
+          <div className="cal-foot">
+            <button type="button" className="cal-link" onClick={() => { onChange(todayISO); setOpen(false); }}>Today</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* themed dropdown for fixed choices — looks like the suggestion lists above,
    but behaves like a <select> (click to open, pick one, no free text) */
 function Picker({ value, onChange, options, placeholder, className }) {
@@ -154,7 +226,7 @@ function EventLogger({ asset, onAppend }) {
             {EVENT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </Field>
-        <Field label="Date" req><input type="date" className="input mono" value={f.date} onChange={(e) => set("date", e.target.value)} /></Field>
+        <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
         {has("to") && <Field label={def.cat === "out" ? "To (customer city)" : def.cat === "move" ? "To (hub)" : "Location / hub"} req>
           <CityInput className={cls("to")} value={f.to} onChange={(v) => set("to", v)} placeholder={`Type ${def.cat === "out" ? "destination city" : "location"}…`} />
@@ -267,8 +339,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
                         </select>
                       </label>
                       <label>Date
-                        <input type="date" className="input mono" defaultValue={e.date} key={e.date}
-                          onBlur={(ev2) => tryEditDate(idx, ev2.target.value)} />
+                        <DateField className="input mono" value={e.date} onChange={(v) => tryEditDate(idx, v)} />
                       </label>
                       {fhas("to") && <label>{eDef.cat === "out" ? "Customer city" : "Location"}
                         <CityInput className="input" value={e.to || ""} placeholder="Type city…"
@@ -334,7 +405,7 @@ function RawFields({ asset, onChange }) {
           <div className="grid3" style={{ marginTop: 12 }}>
             <Field label="New life (years)"><input type="number" className="input mono" value={dep.life} onChange={(e) => setDep({ life: Number(e.target.value) || 0 })} /></Field>
             <Field label="Residual (%)" hint="of CLP-based value"><input type="number" className="input mono" value={Math.round((dep.residual || 0) * 100)} onChange={(e) => setDep({ residual: (Number(e.target.value) || 0) / 100 })} /></Field>
-            <Field label="Effective from"><input type="date" className="input mono" value={dep.from} onChange={(e) => setDep({ from: e.target.value })} /></Field>
+            <Field label="Effective from"><DateField className="input mono" value={dep.from} onChange={(v) => setDep({ from: v })} /></Field>
           </div>
         )}
         <p className="field-hint" style={{ marginTop: 8 }}>Depreciation before the effective date is kept; the new straight-line scheme applies after it. Net book value & analytics update automatically.</p>
@@ -429,7 +500,7 @@ function NewAssetModal({ onClose, onCreate }) {
             <Field label="Status" req>
               <Picker className={sx("status")} options={STATUSES} value={a.status} onChange={(v) => set("status", v)} />
             </Field>
-            <Field label="Induction date" req><input type="date" className={cx("inDate") + " mono"} value={a.inDate} onChange={(e) => set("inDate", e.target.value)} /></Field>
+            <Field label="Induction date" req><DateField className={cx("inDate") + " mono"} value={a.inDate} onChange={(v) => set("inDate", v)} /></Field>
             <Field label="Hub / location" req>
               <CityInput className={cx("hub")} value={a.hub} onChange={(v) => set("hub", v)} placeholder="Start typing a city…" />
             </Field>
