@@ -305,11 +305,9 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
 
   const lastIdx = hist.length - 1;
   const undoLast = () => {
-    const e = hist[lastIdx];
-    if (confirm(`Undo the most recent event — ${e.event} on ${e.date}? The asset returns to its previous state.`)) {
-      if (openIdx === lastIdx) setOpenIdx(null);
-      onDeleteEvent(lastIdx);
-    }
+    // draft-only and recoverable via Discard until Save, so no confirm prompt
+    if (openIdx === lastIdx) setOpenIdx(null);
+    onDeleteEvent(lastIdx);
   };
 
   return (
@@ -393,7 +391,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                 )}
                 <button className="icon-btn del" title={ongoing ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
                   disabled={!ongoing}
-                  onClick={() => { if (ongoing && confirm("Remove this (most recent) event from the timeline?")) onDeleteEvent(idx); }}>🗑</button>
+                  onClick={() => { if (ongoing) onDeleteEvent(idx); }}>🗑</button>
               </div>
             </div>
           );
