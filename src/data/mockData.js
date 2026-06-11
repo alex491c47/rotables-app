@@ -3141,7 +3141,20 @@ export const CITIES = {
 
 const CITY_NAMES = Object.keys(CITIES);
 const HUBS = CITY_NAMES.filter((c) => CITIES[c].type === "hub");
-const CUST_CITIES = CITY_NAMES.filter((c) => CITIES[c].type === "customer");
+// Mock assets are placed only in major aviation cities so the map/register look
+// realistic. The full CITIES database (3,000+ airports) is still available for the
+// Editor's location search — this list only governs the generated demo data.
+const MAJOR_CITIES = [
+  "Dubai", "London", "Paris", "Tokyo", "Hong Kong", "Sydney", "Beijing", "Mumbai",
+  "New Delhi", "Munich", "Frankfurt am Main", "Amsterdam", "Copenhagen", "Vienna",
+  "Rome", "Barcelona", "Madrid", "Lisbon", "Zurich", "Geneva", "Istanbul",
+  "Atlanta", "Chicago", "Los Angeles", "New York", "Miami", "Boston",
+  "San Francisco", "Dallas", "Houston", "Washington", "Toronto", "Vancouver",
+  "Mexico City", "São Paulo", "Buenos Aires", "Dublin", "Doha", "Manama",
+  "Abu Dhabi", "Riyadh", "Jeddah", "Cairo", "Johannesburg", "Bangkok",
+  "Seoul", "Jakarta", "Osaka", "Ho Chi Minh City", "Melbourne", "Auckland",
+];
+const CUST_CITIES = MAJOR_CITIES.filter((c) => CITIES[c] && CITIES[c].type !== "hub");
 
 const CUSTOMERS = [
   "SAS Scandinavian", "Brussels Airlines", "Lufthansa Technik", "Delta Air Lines",
