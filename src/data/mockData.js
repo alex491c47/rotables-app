@@ -3156,11 +3156,25 @@ const MAJOR_CITIES = [
 ];
 const CUST_CITIES = MAJOR_CITIES.filter((c) => CITIES[c] && CITIES[c].type !== "hub");
 
-const CUSTOMERS = [
-  "SAS Scandinavian", "Brussels Airlines", "Lufthansa Technik", "Delta Air Lines",
-  "Emirates", "Singapore Airlines", "Qantas", "Air China", "IndiGo", "ANA",
-  "Gulf Air", "Cathay Pacific", "AerCap (lessor)", "Avolon (lessor)", "United Airlines",
+// Common customers, lessors and component lessors. Short-term-lease cores typically
+// come from OEMs/lessors (Collins, Safran, AJW). Users can still type a new name; a
+// managed, editable list arrives with the database step.
+export const COMMON_CUSTOMERS = [
+  // ST Engineering pool customers / airlines
+  "Lufthansa Technik", "SAS Scandinavian", "Brussels Airlines", "Delta Air Lines",
+  "United Airlines", "American Airlines", "Air France", "KLM", "British Airways",
+  "Emirates", "Qatar Airways", "Etihad Airways", "Gulf Air", "Saudia",
+  "Singapore Airlines", "Cathay Pacific", "Qantas", "ANA", "Japan Airlines",
+  "Korean Air", "Thai Airways", "Air China", "China Southern", "China Eastern",
+  "IndiGo", "Turkish Airlines", "Air Canada", "LATAM Airlines",
+  // Lessors
+  "AerCap (lessor)", "Avolon (lessor)", "SMBC Aviation Capital (lessor)",
+  "Air Lease Corporation (lessor)", "BOC Aviation (lessor)", "DAE Capital (lessor)",
+  "Nordic Aviation Capital (lessor)", "AJW Group (lessor)",
+  // Component / OEM lessors (typical short-term-lease core sources)
+  "Collins Aerospace", "Safran", "GE Aerospace", "Rolls-Royce",
 ];
+const CUSTOMERS = COMMON_CUSTOMERS;
 
 const AIRCRAFT = ["A320LEAP", "A320PW1000G", "A330CF6", "A330TRENT700", "B737NGCFM56", "B737 (MAX)LEAP", "B787TRENT", "B787GENX", "C919LEAP", "ARJ21CF34"];
 const NACELLES = ["Thrust Reverser", "Exhaust Nozzle", "Fan Cowl", "Inlet Cowl"];

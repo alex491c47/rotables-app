@@ -4,6 +4,7 @@ import { AssetStore } from '../data/assetStore';
 import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
+import { getDark, saveDark } from '../lib/theme';
 
 const GLOBE_THEMES = {
   dark: {
@@ -475,10 +476,8 @@ function Header({ stats }) {
   );
 }
 
-const TWEAK_DEFAULTS = { "dark": true, "spin": 1 };
-
 export default function Dashboard() {
-  const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [t, setTweak] = useTweaks({ dark: getDark(), spin: 1 });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [expandedId, setExpandedId] = useState(null);
   const globeRef = useRef(null);
@@ -518,6 +517,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     document.body.classList.toggle("theme-light", !t.dark);
+    saveDark(t.dark);
     if (globeRef.current) globeRef.current.setTheme(GLOBE_THEMES[t.dark ? "dark" : "light"]);
   }, [t.dark]);
   useEffect(() => { if (globeRef.current) globeRef.current.setSpeed(t.spin); }, [t.spin]);

@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
 import { AssetStore } from '../data/assetStore';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
+import { getDark, saveDark } from '../lib/theme';
 
 const TYPE_PALETTE = ["#38bdf8", "#818cf8", "#2dd4bf", "#f472b6", "#fbbf24", "#a3e635", "#fb923c", "#22d3ee", "#c084fc"];
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
@@ -166,7 +167,7 @@ const BrandMark = () => (
 );
 
 export default function Analytics() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(getDark);
   const [year, setYear] = useState(2025);
   const [month, setMonth] = useState(null);
   const [types, setTypes] = useState(new Set());
@@ -175,7 +176,7 @@ export default function Analytics() {
   const [sortKey, setSortKey] = useState("nbv");
   const [sortDir, setSortDir] = useState(-1);
 
-  useEffect(() => { document.body.classList.toggle("theme-light", !dark); }, [dark]);
+  useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
   const AN = useMemo(() => buildAN(AssetStore.list()), []);
   const ALL_TYPES = useMemo(() => [...new Set(AN.assets.map((a) => a.aircraftType))].sort(), [AN]);

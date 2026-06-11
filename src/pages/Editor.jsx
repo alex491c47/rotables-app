@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AssetStore, AssetCalc } from '../data/assetStore';
-import { CITIES, FILTER_OPTIONS, fmtMoney } from '../data/mockData';
+import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
+import { getDark, saveDark } from '../lib/theme';
 
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
@@ -10,9 +11,7 @@ const STATUS_META = {
 const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b" };
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
 const STATUSES = ["WIP", "Ready to ship", "Out on lease"];
-const CUSTOMERS = ["SAS Scandinavian", "Brussels Airlines", "Lufthansa Technik", "Delta Air Lines",
-  "Emirates", "Singapore Airlines", "Qantas", "Air China", "IndiGo", "ANA", "Gulf Air", "Cathay Pacific",
-  "AerCap (lessor)", "Avolon (lessor)", "United Airlines"];
+const CUSTOMERS = COMMON_CUSTOMERS;
 const CITY_NAMES = Object.keys(CITIES).sort();
 const HUBS = CITY_NAMES.filter((c) => CITIES[c].type === "hub");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -280,7 +279,7 @@ function typeIdOf(e) {
   return byEvt ? byEvt.id : "pool";
 }
 
-function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, dirty }) {
+function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onDiscard, dirty }) {
   const [openIdx, setOpenIdx] = useState(null);
   const [msg, setMsg] = useState(null);
   const hist = asset.history;
@@ -385,10 +384,16 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, dir
               <div className="tl-actions">
                 <button className="icon-btn" title="Edit event" onClick={() => { setMsg(null); setOpenIdx(openIdx === idx ? null : idx); }}>✎</button>
                 {openIdx === idx && (
-                  <button className="icon-btn save" title="Save all changes" disabled={!dirty}
-                    onClick={() => { if (dirty && onSave) { onSave(); setOpenIdx(null); } }}>💾</button>
+                  <React.Fragment>
+                    <button className="icon-btn save" title="Save all changes" disabled={!dirty}
+                      onClick={() => { if (dirty && onSave) { onSave(); setOpenIdx(null); } }}>💾</button>
+                    <button className="icon-btn" title="Discard unsaved changes" disabled={!dirty}
+                      onClick={() => { if (onDiscard) { onDiscard(); setOpenIdx(null); } }}>↩</button>
+                  </React.Fragment>
                 )}
-                <button className="icon-btn del" title="Remove event" onClick={() => { if (confirm("Remove this event from the timeline?")) onDeleteEvent(idx); }}>🗑</button>
+                <button className="icon-btn del" title={ongoing ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
+                  disabled={!ongoing}
+                  onClick={() => { if (ongoing && confirm("Remove this (most recent) event from the timeline?")) onDeleteEvent(idx); }}>🗑</button>
               </div>
             </div>
           );
@@ -402,6 +407,10 @@ function RawFields({ asset, onChange }) {
   const set = (k, v) => onChange({ ...asset, [k]: v });
   const dep = asset.depOverride || null;
   const setDep = (patch) => onChange({ ...asset, depOverride: { life: 10, residual: 0, from: today(), ...(dep || {}), ...patch } });
+  // Short-term leases are leased IN from a lessor and shipped straight back out —
+  // they sit off the balance sheet and are never depreciated, so the depreciation
+  // controls are locked unless the ownership is changed to an owned/long-term type.
+  const isSTL = asset.ownership === "Short-term lease";
   return (
     <div className="section">
       <h3 className="section-title">Asset details <span className="hint">correct static information</span></h3>
@@ -419,18 +428,24 @@ function RawFields({ asset, onChange }) {
       </div>
 
       <div style={{ marginTop: 18 }}>
-        <label className="checkbox-row">
-          <input type="checkbox" checked={!!dep} onChange={(e) => onChange({ ...asset, depOverride: e.target.checked ? { life: 10, residual: 0, from: today() } : null })} />
-          Override depreciation scheme from a date
-        </label>
-        {dep && (
-          <div className="grid3" style={{ marginTop: 12 }}>
-            <Field label="New life (years)"><input type="number" className="input mono" value={dep.life} onChange={(e) => setDep({ life: Number(e.target.value) || 0 })} /></Field>
-            <Field label="Residual (%)" hint="of CLP-based value"><input type="number" className="input mono" value={Math.round((dep.residual || 0) * 100)} onChange={(e) => setDep({ residual: (Number(e.target.value) || 0) / 100 })} /></Field>
-            <Field label="Effective from"><DateField className="input mono" value={dep.from} onChange={(v) => setDep({ from: v })} /></Field>
-          </div>
+        {isSTL ? (
+          <p className="field-hint" style={{ marginTop: 4 }}>This asset is a <b>short-term lease</b> — leased in from a lessor and not depreciated, so the depreciation scheme is locked. Change the <b>Ownership</b> above to an owned or long-term type to enable it.</p>
+        ) : (
+          <React.Fragment>
+            <label className="checkbox-row">
+              <input type="checkbox" checked={!!dep} onChange={(e) => onChange({ ...asset, depOverride: e.target.checked ? { life: 10, residual: 0, from: today() } : null })} />
+              Override depreciation scheme from a date
+            </label>
+            {dep && (
+              <div className="grid3" style={{ marginTop: 12 }}>
+                <Field label="New life (years)"><input type="number" className="input mono" value={dep.life} onChange={(e) => setDep({ life: Number(e.target.value) || 0 })} /></Field>
+                <Field label="Residual (%)" hint="of CLP-based value"><input type="number" className="input mono" value={Math.round((dep.residual || 0) * 100)} onChange={(e) => setDep({ residual: (Number(e.target.value) || 0) / 100 })} /></Field>
+                <Field label="Effective from"><DateField className="input mono" value={dep.from} onChange={(v) => setDep({ from: v })} /></Field>
+              </div>
+            )}
+            <p className="field-hint" style={{ marginTop: 8 }}>Depreciation before the effective date is kept; the new straight-line scheme applies after it. Net book value & analytics update automatically.</p>
+          </React.Fragment>
         )}
-        <p className="field-hint" style={{ marginTop: 8 }}>Depreciation before the effective date is kept; the new straight-line scheme applies after it. Net book value & analytics update automatically.</p>
       </div>
     </div>
   );
@@ -543,7 +558,7 @@ const BrandMark = () => (
 );
 
 export default function Editor() {
-  const [dark, setDark] = useState(true);
+  const [dark, setDark] = useState(getDark);
   const [q, setQ] = useState("");
   const [selId, setSelId] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -552,7 +567,7 @@ export default function Editor() {
   const [showNew, setShowNew] = useState(false);
   const [tick, setTick] = useState(0);
 
-  useEffect(() => { document.body.classList.toggle("theme-light", !dark); }, [dark]);
+  useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -607,6 +622,7 @@ export default function Editor() {
   };
 
   const save = () => { AssetStore.save(draft); setDirty(false); refresh(); selectAsset(draft.assetNumber); flash("Saved — changes flow to Register & Analytics"); };
+  const discard = () => { if (!dirty || confirm("Discard your unsaved changes to this asset?")) { selectAsset(selId); flash("Unsaved changes discarded"); } };
   const revert = () => { AssetStore.revert(selId); refresh(); selectAsset(selId); flash("Reverted to generated data"); };
   const removeAsset = () => { if (!confirm("Remove this asset from the register?")) return; const id = selId; AssetStore.remove(id); setSelId(null); setDraft(null); refresh(); flash("Asset removed"); };
   const createAsset = (a) => { AssetStore.save(a); setShowNew(false); refresh(); selectAsset(a.assetNumber); flash("Asset created"); };
@@ -625,7 +641,6 @@ export default function Editor() {
         </nav>
         <div className="header-right">
           {AssetStore.editCount() > 0 && <span className="edit-badge"><b>{AssetStore.editCount()}</b> local edit{AssetStore.editCount() === 1 ? "" : "s"}</span>}
-          <button className="btn" onClick={() => { if (confirm("Discard ALL local edits and restore generated data?")) { AssetStore.resetAll(); setSelId(null); setDraft(null); refresh(); flash("All edits reset"); } }}>Reset all</button>
           <button className="btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"}</button>
         </div>
       </header>
@@ -672,6 +687,7 @@ export default function Editor() {
                   <StatusPill status={draft.status} />
                   {dirty && <span className="dim" style={{ fontSize: 12, color: "var(--wip)" }}>● unsaved</span>}
                   <button className="btn btn-primary" disabled={!dirty} onClick={save} style={!dirty ? { opacity: .5 } : null}>Save</button>
+                  {dirty && <button className="btn" onClick={discard} title="Throw away unsaved changes">Discard changes</button>}
                   {AssetStore.isBase(selId) && AssetStore.isEdited(selId) && <button className="btn" onClick={revert}>Revert</button>}
                   <button className="btn btn-danger btn-sm" onClick={removeAsset}>Remove asset</button>
                 </div>
@@ -680,7 +696,7 @@ export default function Editor() {
               {dirty && <div className="banner banner-warn"><span>●</span> Unsaved changes — click <b>Save</b> to persist them and update the Register & Analytics views.</div>}
 
               <EventLogger asset={draft} onAppend={appendEvent} />
-              <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} onSave={save} dirty={dirty} />
+              <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} onSave={save} onDiscard={discard} dirty={dirty} />
               <RawFields asset={draft} onChange={updateDraft} />
             </div>
           )}

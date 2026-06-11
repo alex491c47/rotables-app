@@ -673,7 +673,8 @@ textarea.input { resize: vertical; min-height: 38px; }
 .icon-btn:hover { color: var(--text); background: var(--row-hover); }
 .icon-btn.del:hover { color: #f87171; }
 .icon-btn.save:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.icon-btn.save:disabled { opacity: .4; cursor: default; background: none; }
+.icon-btn:disabled { opacity: .35; cursor: not-allowed; background: none; }
+.icon-btn:disabled:hover { color: var(--dim); background: none; }
 .status-seg { display: inline-flex; background: var(--bg2); border: 1px solid var(--border2); border-radius: 9px; padding: 3px; gap: 2px; }
 .status-seg button { border: none; background: none; color: var(--text2); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12.5px; }
 .status-seg button.on { color: #04101d; font-weight: 600; }

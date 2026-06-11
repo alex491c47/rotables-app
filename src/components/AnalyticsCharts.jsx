@@ -183,14 +183,17 @@ export function StackBar({ rows, height = 26 }) {
 
 export function Donut({ data, size = 150, thickness = 26, centerLabel, centerValue }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
+  const pad = 30;                 // room around the ring for outside labels + leader lines
+  const box = size + pad * 2;
   const r = (size - thickness) / 2;
-  const c = size / 2;
+  const c = box / 2;              // centre of the padded canvas
+  const outer = r + thickness / 2;
   const circ = 2 * Math.PI * r;
   let acc = 0;
   const [hover, setHover] = useState(null);
   return (
     <div className="donut-wrap">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <svg width={box} height={box} viewBox={`0 0 ${box} ${box}`}>
         <circle cx={c} cy={c} r={r} fill="none" stroke="var(--border)" strokeWidth={thickness} />
         {data.map((d, i) => {
           const frac = d.value / total;
@@ -209,23 +212,29 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
           return seg;
         })}
         {(() => {
-          // percentage labels on the ring — one per slice, skipped when the slice
-          // is too thin to fit the text
+          // percentage labels OUTSIDE the ring, each joined to its slice by a short
+          // leader line; very thin slices are skipped to avoid clutter
           let a2 = 0;
           return data.map((d, i) => {
             const frac = d.value / total;
             const mid = (a2 + frac / 2) * 2 * Math.PI - Math.PI / 2;
             a2 += frac;
-            if (frac < 0.055) return null;
-            const lx = c + r * Math.cos(mid);
-            const ly = c + r * Math.sin(mid);
+            if (frac < 0.03) return null;
+            const cos = Math.cos(mid), sin = Math.sin(mid);
+            const x1 = c + outer * cos, y1 = c + outer * sin;       // ring edge
+            const x2 = c + (outer + 12) * cos, y2 = c + (outer + 12) * sin; // elbow
+            const right = cos >= 0;
+            const lx = x2 + (right ? 4 : -4);
             return (
-              <text key={"pct" + i} x={lx} y={ly + 3} textAnchor="middle" fontSize="9.5"
-                fontWeight="700" fill="#0b1626" pointerEvents="none"
-                opacity={hover === null || hover === i ? 1 : 0.45}
-                fontFamily="'IBM Plex Sans',sans-serif">
-                {Math.round(frac * 100)}%
-              </text>
+              <g key={"pct" + i} opacity={hover === null || hover === i ? 1 : 0.4}>
+                <polyline points={`${x1},${y1} ${x2},${y2}`} fill="none"
+                  stroke={d.color} strokeWidth="1.3" />
+                <text x={lx} y={y2 + 3.2} textAnchor={right ? "start" : "end"}
+                  fontSize="10.5" fontWeight="700" fill="var(--text2)"
+                  fontFamily="'IBM Plex Sans',sans-serif">
+                  {Math.round(frac * 100)}%
+                </text>
+              </g>
             );
           });
         })()}
