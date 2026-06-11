@@ -212,7 +212,7 @@ export default function Analytics() {
       revenue += r;
       const rem = AN.removalsInPeriod(a, period);
       Object.keys(removals).forEach((k) => (removals[k] += rem[k]));
-      if (!AN.inServiceBy(a, period)) return;
+      if (!AN.activeInPeriod(a, period)) return;
       const d = AN.nbvAsOf(a, period);
       leaseIn += AN.leaseInCost(a, period);
       nbv += d.nbv; acq += a.acqValue; accumDep += d.accumDep; clp += a.clp; count++;
@@ -251,7 +251,7 @@ export default function Analytics() {
   const depRows = useMemo(() => {
     return ALL_TYPES.map((t) => {
       let nbvSum = 0, dep = 0;
-      AN.assets.filter((a) => a.aircraftType === t && AN.inServiceBy(a, period)).forEach((a) => {
+      AN.assets.filter((a) => a.aircraftType === t && AN.activeInPeriod(a, period)).forEach((a) => {
         const d = AN.nbvAsOf(a, period); nbvSum += d.nbv; dep += d.accumDep;
       });
       if (!nbvSum && !dep) return null;
@@ -263,7 +263,8 @@ export default function Analytics() {
   }, [AN, period, ALL_TYPES, TYPE_COLOR]);
 
   const rows = useMemo(() => {
-    const data = assets.map((a) => {
+    // only assets that were online during the selected period appear
+    const data = assets.filter((a) => AN.activeInPeriod(a, period)).map((a) => {
       const d = AN.nbvAsOf(a, period);
       const revenue = AN.revInPeriod(a, period);
       return {

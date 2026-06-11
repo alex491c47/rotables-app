@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { AssetStore, AssetCalc } from '../data/assetStore';
 import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
 import { getDark, saveDark } from '../lib/theme';
+import { effectiveFinance } from '../lib/analyticsModel';
 
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
@@ -418,6 +419,9 @@ function RawFields({ asset, onChange }) {
   // they sit off the balance sheet and are never depreciated, so the depreciation
   // controls are locked unless the ownership is changed to an owned/long-term type.
   const isSTL = asset.ownership === "Short-term lease";
+  // the values the model actually uses, so generated/legacy assets show real numbers
+  // instead of blanks. Explicit fields win; otherwise the computed defaults show.
+  const eff = effectiveFinance(asset);
   return (
     <div className="section">
       <h3 className="section-title">Asset details <span className="hint">correct static information</span></h3>
@@ -428,12 +432,12 @@ function RawFields({ asset, onChange }) {
         </Field>
         <Field label="Component"><Picker className="select" options={FILTER_OPTIONS.nacelle} value={asset.nacelle} onChange={(v) => set("nacelle", v)} /></Field>
         <Field label="Ownership"><Picker className="select" options={OWN_TYPES} value={asset.ownership || "Owned"} onChange={(v) => set("ownership", v)} /></Field>
-        <Field label="CLP (USD)" hint="catalogue list price"><MoneyInput className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder="auto from type" onChange={(v) => set("clp", v === "" ? null : Number(v))} /></Field>
+        <Field label="CLP (USD)" hint={asset.clp == null && eff.clp ? `auto from type: ${fmtMoney(eff.clp)}` : "catalogue list price"}><MoneyInput className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder={eff.clp ? eff.clp.toLocaleString("en-US") : "auto from type"} onChange={(v) => set("clp", v === "" ? null : Number(v))} /></Field>
         <Field label="Initial part number"><input className="input mono" value={asset.initialPartNumber || ""} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
-        {!isSTL && <Field label="Acquisition value (USD)" hint="NBV & depreciation are based on this"><MoneyInput className="input mono" value={asset.acquisitionValue != null ? asset.acquisitionValue : ""} onChange={(v) => set("acquisitionValue", v === "" ? null : Number(v))} /></Field>}
-        {!isSTL && <Field label="Depreciation method"><Picker className="select" options={["Straight-line", "Declining balance"]} value={asset.depMethod || "Straight-line"} onChange={(v) => set("depMethod", v)} /></Field>}
-        {!isSTL && <Field label="Depreciation years"><input type="number" inputMode="numeric" className="input mono" value={asset.depLife != null ? asset.depLife : ""} onChange={(e) => set("depLife", e.target.value === "" ? null : Number(e.target.value))} /></Field>}
-        {!isSTL && <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={asset.depResidual != null ? Math.round(asset.depResidual * 100) : ""} onChange={(e) => set("depResidual", e.target.value === "" ? 0 : (Number(e.target.value) || 0) / 100)} /></Field>}
+        {!isSTL && <Field label="Acquisition value (USD)" hint="NBV & depreciation are based on this"><MoneyInput className="input mono" value={asset.acquisitionValue != null ? asset.acquisitionValue : Math.round(eff.acqValue)} onChange={(v) => set("acquisitionValue", v === "" ? null : Number(v))} /></Field>}
+        {!isSTL && <Field label="Depreciation method"><Picker className="select" options={["Straight-line", "Declining balance"]} value={asset.depMethod || eff.method} onChange={(v) => set("depMethod", v)} /></Field>}
+        {!isSTL && <Field label="Depreciation years"><input type="number" inputMode="numeric" className="input mono" value={asset.depLife != null ? asset.depLife : eff.lifeYears} onChange={(e) => set("depLife", e.target.value === "" ? null : Number(e.target.value))} /></Field>}
+        {!isSTL && <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={asset.depResidual != null ? Math.round(asset.depResidual * 100) : Math.round(eff.residual * 100)} onChange={(e) => set("depResidual", e.target.value === "" ? 0 : (Number(e.target.value) || 0) / 100)} /></Field>}
         {isSTL && <Field label="Daily lease-in cost (USD)" hint="what we pay the lessor / day — short-term lease only"><MoneyInput className="input mono" value={asset.dailyRate || ""} onChange={(v) => set("dailyRate", v === "" ? 0 : Number(v))} /></Field>}
         <Field label="Description" span><input className="input" value={asset.description || ""} onChange={(e) => set("description", e.target.value)} /></Field>
       </div>

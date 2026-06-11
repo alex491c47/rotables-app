@@ -48,6 +48,26 @@ function classify(a) {
      return r < 0.9 ? "Long-term lease" : "Owned";
 }
 
+// The finance values actually used for an asset — explicit fields if present,
+// otherwise the same defaults the model applies. Lets the Editor SHOW the real
+// numbers instead of blank boxes for generated/legacy assets.
+export function effectiveFinance(a) {
+     const clp = a.clp != null ? a.clp : ((AN_CLP[a.aircraftType] && AN_CLP[a.aircraftType][a.nacelle]) || 0);
+     const ownership = classify(a);
+     if (ownership === "Short-term lease") {
+            return { clp, ownership, acqValue: 0, lifeYears: 0, residual: 0, method: "Straight-line" };
+     }
+     const defAcq = ownership === "Long-term lease" ? 0.4 * clp : clp;
+     const defLife = ownership === "Long-term lease" ? 10 : 25;
+     return {
+            clp, ownership,
+            acqValue: a.acquisitionValue != null ? a.acquisitionValue : defAcq,
+            lifeYears: a.depLife != null ? a.depLife : defLife,
+            residual: a.depResidual != null ? a.depResidual : 0,
+            method: a.depMethod || "Straight-line",
+     };
+}
+
 export const ymKey = (y, m) => y + "-" + String(m + 1).padStart(2, "0");
 export const dim = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
 
@@ -193,6 +213,10 @@ export function buildAN(rawAssets) {
      }
      function utilFrac(asset, period) {
             const days = utilDaysInPeriod(asset, period);
+            // Short-term leases are only on our books while actually out on lease
+            // (leased in from a supplier, shipped straight to the customer, returned),
+            // so their utilisation is ~100% whenever they are active.
+            if (asset.ownership === "Short-term lease") return days > 0 ? 1 : 0;
             let denom;
             if (period.year == null) denom = asset.ageDays;
             else if (period.month != null) denom = dim(period.year, period.month);
@@ -201,11 +225,25 @@ export function buildAN(rawAssets) {
      }
      function leaseInCost(asset, period) {
             if (!asset.leaseInDaily) return 0;
-            let days;
-            if (period.year == null) days = asset.ageDays;
-            else if (period.month != null) days = dim(period.year, period.month);
-            else days = 365;
-            return asset.leaseInDaily * days;
+            // we only pay the lessor for the days the unit is actually out on lease
+            return asset.leaseInDaily * utilDaysInPeriod(asset, period);
+     }
+     function periodStartMs(period) {
+            if (period.year == null) return -Infinity;
+            return period.month != null ? Date.UTC(period.year, period.month, 1) : Date.UTC(period.year, 0, 1);
+     }
+     // whether an asset was genuinely "online" during the period: in service by the
+     // period end, not retired before it began, and (for short-term leases) actually
+     // out on lease during it.
+     function activeInPeriod(asset, period) {
+            if (!inServiceBy(asset, period)) return false;
+            const ref = asset.ref;
+            if (ref && ref.retired && ref.retiredDate) {
+                     const retMs = new Date(ref.retiredDate + "T00:00:00Z").getTime();
+                     if (retMs < periodStartMs(period)) return false;
+            }
+            if (asset.ownership === "Short-term lease") return utilDaysInPeriod(asset, period) > 0;
+            return true;
      }
      function monthlyRev(asset, year) {
             const out = []; for (let m = 0; m < 12; m++) out.push(asset.mRev[ymKey(year, m)] || 0); return out;
@@ -249,7 +287,7 @@ export function buildAN(rawAssets) {
   return {
          assets, years, AN_CLP, LEASE_IN_PCT,
          revInPeriod, utilDaysInPeriod, utilFrac, leaseInCost, monthlyRev, monthlyUtilFrac,
-         asOfMs, inServiceBy, nbvAsOf, removalsInPeriod, dim, ymKey,
+         asOfMs, inServiceBy, activeInPeriod, nbvAsOf, removalsInPeriod, dim, ymKey,
          weightedUtil(list, period) {
                   let wsum = 0, num = 0;
                   list.forEach((a) => { const w = nbvAsOf(a, period).nbv; if (w > 0) { wsum += w; num += utilFrac(a, period) * w; } });
