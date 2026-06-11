@@ -52,7 +52,7 @@ body.theme-light {
 .strong { font-weight: 600; color: var(--text); }
 
 /* ---- full-height app shell (Dashboard + Editor) ---- */
-.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.app { display: flex; flex-direction: column; height: 100vh; overflow: clip; }
 
 /* ---- scrolling page shell (Analytics) ---- */
 .page { display: flex; flex-direction: column; min-height: 100vh; }
