@@ -595,8 +595,8 @@ body.theme-light .select {
   box-shadow: var(--shadow); max-height: 240px; overflow-y: auto;
 }
 .city-ac-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; color: var(--text); }
-/* alternating rows — every other row a touch lighter blue; hover is stronger still */
-.city-ac-item:nth-child(even) { background: var(--row-hover); }
+/* alternating rows — first row lighter, then dark, then light…; hover is stronger still */
+.city-ac-item:nth-child(odd) { background: var(--row-hover); }
 .city-ac-item:hover { background: var(--row-open); }
 .city-ac-item.sel { color: var(--accent); font-weight: 600; }
 /* slimmer scrollbar inside the dropdown lists */
