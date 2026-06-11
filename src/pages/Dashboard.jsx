@@ -5,6 +5,7 @@ import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
 import { getDark, saveDark } from '../lib/theme';
+import UserMenu from '../components/UserMenu';
 
 const GLOBE_THEMES = {
   dark: {
@@ -472,6 +473,7 @@ function Header({ stats }) {
         <div className="stat stat-lease"><span className="stat-num">{stats.lease}</span><span className="stat-lbl">Out on lease</span></div>
         <div className="stat stat-rev"><span className="stat-num">{fmtMoney(stats.revenue)}</span><span className="stat-lbl">Revenue LTD</span></div>
       </div>
+      <UserMenu />
     </header>
   );
 }

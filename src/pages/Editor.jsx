@@ -4,6 +4,7 @@ import { AssetStore, AssetCalc, useAssets, assetsStatus } from '../data/assetSto
 import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
 import { getDark, saveDark } from '../lib/theme';
 import { effectiveFinance } from '../lib/analyticsModel';
+import UserMenu from '../components/UserMenu';
 
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
@@ -681,8 +682,8 @@ export default function Editor() {
           <NavLink to="/editor">Editor</NavLink>
         </nav>
         <div className="header-right">
-          {AssetStore.editCount() > 0 && <span className="edit-badge"><b>{AssetStore.editCount()}</b> local edit{AssetStore.editCount() === 1 ? "" : "s"}</span>}
           <button className="btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"}</button>
+          <UserMenu />
         </div>
       </header>
 
