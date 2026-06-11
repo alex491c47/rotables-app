@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AssetStore } from '../data/assetStore';
+import { AssetStore, useAssets } from '../data/assetStore';
 import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
@@ -477,6 +477,7 @@ function Header({ stats }) {
 }
 
 export default function Dashboard() {
+  useAssets();   // load from Supabase + re-render when the shared data changes
   const [t, setTweak] = useTweaks({ dark: getDark(), spin: 1 });
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [expandedId, setExpandedId] = useState(null);

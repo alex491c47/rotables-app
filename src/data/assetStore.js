@@ -1,17 +1,17 @@
 /* ============================================================
-   ST Engineering Solutions — Asset edit store
-   Overlays user edits (localStorage) on top of the generated
-   ASSET_DATA so changes flow into the Register, Analytics &
-   Editor views.
+   ST Engineering Solutions — Asset store (Supabase-backed)
+
+   Reads/writes the shared Supabase database. An in-memory cache
+   (currentAssets) keeps the synchronous list()/get() API the
+   pages already use; components subscribe via useAssets() and
+   re-render when the cache changes. Current status/location/
+   revenue are still CALCULATED here (recompute) from the event
+   history, so the database only stores raw assets + events.
    ============================================================ */
-import { ASSET_DATA } from './mockData';
+import { useSyncExternalStore, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { CITIES, COMMON_CUSTOMERS } from './mockData';
 
-const KEY = "ste_asset_edits_hv2";
-const base = ASSET_DATA.slice();
-const baseById = {};
-base.forEach((a) => (baseById[a.assetNumber] = a));
-
-const clone = (o) => JSON.parse(JSON.stringify(o));
 const DAY = 86400000;
 const TODAY_MS = Math.max(Date.parse("2026-06-04T00:00:00Z"), Date.now());
 const dateMs = (d) => Date.parse(d + "T00:00:00Z");
@@ -36,15 +36,6 @@ export const AssetCalc = {
     return e.revenue || 0;
   },
 };
-
-function load() {
-  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch (e) { return {}; }
-}
-let store = load();
-store.edits = store.edits || {};
-store.added = store.added || [];
-store.deleted = store.deleted || [];
-function persist() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
 
 function recompute(a) {
   const ev = (a.history || []).slice().sort((x, y) =>
@@ -80,7 +71,6 @@ function recompute(a) {
   a.totalRevenue = ev.reduce((s, e) => s + (e.revenue || 0), 0);
   a.daysOnLease = ev.reduce((s, e) => s + (e.leaseDays || 0), 0);
   a.pnChanged = !!a.partNumber && a.partNumber !== a.initialPartNumber;
-  // an asset is retired/archived once its final event ends its use (returned, scrapped, sold)
   const lastEv = ev[ev.length - 1];
   a.retired = !!(lastEv && lastEv.cat === "end");
   a.retiredReason = a.retired ? lastEv.event : null;
@@ -88,62 +78,155 @@ function recompute(a) {
   return a;
 }
 
+/* ---------------- in-memory cache + subscription ---------------- */
 let currentAssets = [];
+let version = 0;
+let status = "idle";        // idle | loading | ready | error
+let loadError = null;
+const listeners = new Set();
+function notify() { version += 1; listeners.forEach((fn) => fn()); }
+function subscribeAssets(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
-function build() {
-  const deleted = new Set(store.deleted);
-  const merged = [];
-  base.forEach((a) => {
-    if (deleted.has(a.assetNumber)) return;
-    merged.push(store.edits[a.assetNumber] ? recompute(clone(store.edits[a.assetNumber])) : a);
+/* ---------------- DB row <-> app object mapping ---------------- */
+function rowToEvent(e) {
+  return {
+    date: e.event_date, event: e.event_type, cat: e.category, status: e.status,
+    from: e.from_city, to: e.to_city, customer: e.customer,
+    contractType: e.contract_type, contractYears: e.contract_years,
+    dailyFee: e.daily_fee, monthlyRevenue: e.monthly_revenue, exchangeFee: e.exchange_fee,
+    recertFee: e.recert_fee, salePrice: e.sale_price, pn: e.part_number, notes: e.notes,
+  };
+}
+function rowToAsset(a, events) {
+  return recompute({
+    _id: a.id, assetNumber: a.asset_number, aircraftType: a.aircraft_type, nacelle: a.nacelle,
+    description: a.description, ownership: a.ownership, initialPartNumber: a.initial_part_number,
+    partNumber: a.initial_part_number, clp: a.clp, acquisitionValue: a.acquisition_value,
+    dailyRate: a.daily_rate || 0, depMethod: a.dep_method, depLife: a.dep_life_years,
+    depResidual: a.dep_residual, depOverride: a.dep_override, exchangeCore: a.exchange_core,
+    history: (events || []).map(rowToEvent),
   });
-  store.added.forEach((a) => { if (!deleted.has(a.assetNumber)) merged.push(recompute(clone(a))); });
-  merged.sort((x, y) => String(x.assetNumber).localeCompare(String(y.assetNumber)));
-  currentAssets = merged;
-  return merged;
+}
+function assetToRow(a) {
+  return {
+    asset_number: a.assetNumber, aircraft_type: a.aircraftType, nacelle: a.nacelle,
+    description: a.description || null, ownership: a.ownership || "Owned",
+    initial_part_number: a.initialPartNumber || a.partNumber || "",
+    clp: a.clp ?? null, acquisition_value: a.acquisitionValue ?? null, daily_rate: a.dailyRate || 0,
+    dep_method: a.depMethod || "Straight-line", dep_life_years: a.depLife ?? null,
+    dep_residual: a.depResidual ?? 0, dep_override: a.depOverride || null, exchange_core: !!a.exchangeCore,
+  };
+}
+function eventToRow(e, assetId) {
+  return {
+    asset_id: assetId, event_date: e.date, event_type: e.event, category: e.cat, status: e.status,
+    from_city: e.from || null, to_city: e.to || null, customer: e.customer || null,
+    contract_type: e.contractType || null, contract_years: e.contractYears ?? null,
+    daily_fee: e.dailyFee ?? null, monthly_revenue: e.monthlyRevenue ?? null, exchange_fee: e.exchangeFee ?? null,
+    recert_fee: e.recertFee ?? null, sale_price: e.salePrice ?? null, part_number: e.pn || null, notes: e.notes || null,
+  };
+}
+
+/* one-time population of the reference lists (cities for the globe/pickers,
+   customers for the dropdown) so the app behaves like before */
+async function seedReferenceData() {
+  const { count: cityCount } = await supabase.from("cities").select("*", { count: "exact", head: true });
+  if (!cityCount) {
+    const rows = Object.keys(CITIES).map((name) => ({
+      name, lat: CITIES[name].lat, lon: CITIES[name].lon,
+      country: CITIES[name].country || "", city_type: CITIES[name].type || "customer",
+    }));
+    for (let i = 0; i < rows.length; i += 500) {
+      await supabase.from("cities").upsert(rows.slice(i, i + 500), { onConflict: "name" });
+    }
+  }
+  const { count: custCount } = await supabase.from("customers").select("*", { count: "exact", head: true });
+  if (!custCount) {
+    const rows = COMMON_CUSTOMERS.map((name) => ({ name, is_lessor: /lessor|Collins|Safran|AJW/i.test(name) }));
+    await supabase.from("customers").upsert(rows, { onConflict: "name" });
+  }
+}
+
+async function loadAssets() {
+  if (status === "loading") return;
+  status = "loading"; loadError = null; notify();
+  try {
+    await seedReferenceData();
+    const { data: assetRows, error: e1 } = await supabase
+      .from("assets").select("*").is("deleted_at", null).order("asset_number");
+    if (e1) throw e1;
+    let eventRows = [];
+    const ids = (assetRows || []).map((a) => a.id);
+    if (ids.length) {
+      const { data: ev, error: e2 } = await supabase.from("asset_events").select("*").in("asset_id", ids);
+      if (e2) throw e2;
+      eventRows = ev || [];
+    }
+    const byAsset = {};
+    eventRows.forEach((e) => { (byAsset[e.asset_id] = byAsset[e.asset_id] || []).push(e); });
+    Object.values(byAsset).forEach((l) => l.sort((x, y) => (x.event_date < y.event_date ? -1 : x.event_date > y.event_date ? 1 : 0)));
+    currentAssets = (assetRows || []).map((a) => rowToAsset(a, byAsset[a.id]));
+    status = "ready";
+  } catch (err) {
+    loadError = err; status = "error";
+    console.error("Supabase load failed:", err);
+  } finally {
+    notify();
+  }
 }
 
 export const AssetStore = {
-  list: () => currentAssets.filter((a) => !a.retired),   // active assets — Register, Editor, globe
-  listAll: () => currentAssets,                          // everything incl. retired — Analytics
-  listArchived: () => currentAssets.filter((a) => a.retired), // retired only — Editor historical view
+  list: () => currentAssets.filter((a) => !a.retired),     // active — Register / Editor / globe
+  listAll: () => currentAssets,                            // everything incl. retired — Analytics
+  listArchived: () => currentAssets.filter((a) => a.retired), // retired — Editor historical view
   get: (id) => currentAssets.find((a) => a.assetNumber === id),
-  baseGet: (id) => baseById[id] || null,
-  isBase: (id) => !!baseById[id],
-  isEdited: (id) => !!store.edits[id] || store.added.some((a) => a.assetNumber === id) || store.deleted.includes(id),
-  isAdded: (id) => store.added.some((a) => a.assetNumber === id),
-  save(asset) {
-    const a = recompute(clone(asset));
-    if (baseById[a.assetNumber]) store.edits[a.assetNumber] = a;
-    else {
-      const i = store.added.findIndex((x) => x.assetNumber === a.assetNumber);
-      if (i >= 0) store.added[i] = a; else store.added.push(a);
+  status: () => status,
+  error: () => loadError,
+  reload: loadAssets,
+
+  async save(asset) {
+    const { data: up, error: e1 } = await supabase
+      .from("assets").upsert(assetToRow(asset), { onConflict: "asset_number" }).select("id").single();
+    if (e1) throw e1;
+    const id = up.id;
+    const { error: eDel } = await supabase.from("asset_events").delete().eq("asset_id", id);
+    if (eDel) throw eDel;
+    const rows = (asset.history || []).map((e) => eventToRow(e, id));
+    if (rows.length) {
+      const { error: eIns } = await supabase.from("asset_events").insert(rows);
+      if (eIns) throw eIns;
     }
-    store.deleted = store.deleted.filter((x) => x !== a.assetNumber);
-    persist(); return build();
+    await loadAssets();
   },
-  remove(id) {
-    if (baseById[id]) { if (!store.deleted.includes(id)) store.deleted.push(id); delete store.edits[id]; }
-    else store.added = store.added.filter((a) => a.assetNumber !== id);
-    persist(); return build();
+
+  async remove(id) {
+    const a = currentAssets.find((x) => x.assetNumber === id);
+    if (a && a._id) {
+      const { error } = await supabase.from("assets").update({ deleted_at: new Date().toISOString() }).eq("id", a._id);
+      if (error) throw error;
+    }
+    await loadAssets();
   },
-  revert(id) {
-    delete store.edits[id];
-    store.deleted = store.deleted.filter((x) => x !== id);
-    persist(); return build();
-  },
-  resetAll() { store = { edits: {}, added: [], deleted: [] }; persist(); return build(); },
+
   nextNumber() {
     let max = 10000;
     currentAssets.forEach((a) => {
       const n = parseInt(String(a.assetNumber).replace(/\D/g, ""), 10);
       if (!isNaN(n) && n > max) max = n;
     });
-    return "STE-" + (max + 1 + Math.floor(Math.random() * 9));
+    return "STE-" + (max + 1);
   },
+
   recompute,
-  editCount: () => Object.keys(store.edits).length + store.added.length + store.deleted.length,
+  // edit-layer concepts from the old localStorage model no longer apply
+  isBase: () => false, isEdited: () => false, isAdded: () => false, editCount: () => 0,
+  revert: () => {}, resetAll: () => {},
 };
 
-// Initialise on module load
-build();
+/* React hook: subscribe to the cache and trigger the first load */
+export function useAssets() {
+  const v = useSyncExternalStore(subscribeAssets, () => version, () => version);
+  useEffect(() => { if (status === "idle") loadAssets(); }, []);
+  return v;
+}
+export function assetsStatus() { return status; }

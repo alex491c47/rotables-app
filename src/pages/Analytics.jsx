@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
-import { AssetStore } from '../data/assetStore';
+import { AssetStore, useAssets } from '../data/assetStore';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
 
@@ -167,6 +167,7 @@ const BrandMark = () => (
 );
 
 export default function Analytics() {
+  const dataVersion = useAssets();   // load from Supabase + re-render on changes
   const [dark, setDark] = useState(getDark);
   const [year, setYear] = useState(2025);
   const [month, setMonth] = useState(null);
@@ -178,7 +179,7 @@ export default function Analytics() {
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
-  const AN = useMemo(() => buildAN(AssetStore.listAll()), []);
+  const AN = useMemo(() => buildAN(AssetStore.listAll()), [dataVersion]);
   const ALL_TYPES = useMemo(() => [...new Set(AN.assets.map((a) => a.aircraftType))].sort(), [AN]);
   const TYPE_COLOR = useMemo(() => {
     const m = {};

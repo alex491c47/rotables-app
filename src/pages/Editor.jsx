@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AssetStore, AssetCalc } from '../data/assetStore';
+import { AssetStore, AssetCalc, useAssets, assetsStatus } from '../data/assetStore';
 import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
 import { getDark, saveDark } from '../lib/theme';
 import { effectiveFinance } from '../lib/analyticsModel';
@@ -577,6 +577,7 @@ const BrandMark = () => (
 );
 
 export default function Editor() {
+  const dataVersion = useAssets();   // load from Supabase + re-render on changes
   const [dark, setDark] = useState(getDark);
   const [q, setQ] = useState("");
   const [selId, setSelId] = useState(null);
@@ -594,8 +595,8 @@ export default function Editor() {
     const source = showArchived ? AssetStore.listArchived() : AssetStore.list();
     return source.filter((a) => !ql ||
       (a.assetNumber + " " + a.partNumber + " " + a.aircraftType + " " + a.nacelle + " " + (a.customer || "") + " " + (a.location || "")).toLowerCase().includes(ql));
-  }, [q, tick, showArchived]);
-  const archivedCount = useMemo(() => AssetStore.listArchived().length, [tick]);
+  }, [q, tick, showArchived, dataVersion]);
+  const archivedCount = useMemo(() => AssetStore.listArchived().length, [tick, dataVersion]);
 
   const selectAsset = (id) => {
     setSelId(id);
@@ -643,11 +644,29 @@ export default function Editor() {
     setDraft(next); setDirty(true);
   };
 
-  const save = () => { AssetStore.save(draft); setDirty(false); refresh(); selectAsset(draft.assetNumber); flash("Saved — changes flow to Register & Analytics"); };
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (busy) return; setBusy(true);
+    try { await AssetStore.save(draft); setDirty(false); selectAsset(draft.assetNumber); flash("Saved — changes flow to Register & Analytics"); }
+    catch (err) { flash("Save failed: " + (err.message || "could not reach the database")); }
+    finally { setBusy(false); }
+  };
   const discard = () => { selectAsset(selId); flash("Unsaved changes discarded"); };
-  const revert = () => { AssetStore.revert(selId); refresh(); selectAsset(selId); flash("Reverted to generated data"); };
-  const removeAsset = () => { if (!confirm("Remove this asset from the register?")) return; const id = selId; AssetStore.remove(id); setSelId(null); setDraft(null); refresh(); flash("Asset removed"); };
-  const createAsset = (a) => { AssetStore.save(a); setShowNew(false); refresh(); selectAsset(a.assetNumber); flash("Asset created"); };
+  const revert = () => {};
+  const removeAsset = async () => {
+    if (!confirm("Remove this asset from the register?")) return;
+    if (busy) return; setBusy(true);
+    const id = selId;
+    try { await AssetStore.remove(id); setSelId(null); setDraft(null); flash("Asset removed"); }
+    catch (err) { flash("Remove failed: " + (err.message || "could not reach the database")); }
+    finally { setBusy(false); }
+  };
+  const createAsset = async (a) => {
+    if (busy) return; setBusy(true);
+    try { await AssetStore.save(a); setShowNew(false); selectAsset(a.assetNumber); flash("Asset created"); }
+    catch (err) { flash("Create failed: " + (err.message || "could not reach the database")); }
+    finally { setBusy(false); }
+  };
 
   return (
     <div className="app editor-page">
@@ -693,7 +712,12 @@ export default function Editor() {
                   : AssetStore.isEdited(a.assetNumber) ? <span className="aitem-flag">edited</span> : null}
               </div>
             ))}
-            {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>{showArchived ? "No historical assets yet." : "No matching assets."}</div>}
+            {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>
+              {assetsStatus() === "loading" ? "Loading assets…"
+                : assetsStatus() === "error" ? "Couldn't reach the database — check your connection."
+                : showArchived ? "No historical assets yet."
+                : q ? "No matching assets." : "No assets yet — click + New to add the first one."}
+            </div>}
           </div>
         </aside>
 
@@ -713,7 +737,7 @@ export default function Editor() {
                 <div className="ed-head-actions">
                   <StatusPill status={draft.status} />
                   {dirty && <span className="dim" style={{ fontSize: 12, color: "var(--wip)" }}>● unsaved</span>}
-                  <button className="btn btn-primary" disabled={!dirty} onClick={save} style={!dirty ? { opacity: .5 } : null}>Save</button>
+                  <button className="btn btn-primary" disabled={!dirty || busy} onClick={save} style={!dirty || busy ? { opacity: .5 } : null}>{busy ? "Saving…" : "Save"}</button>
                   {dirty && <button className="btn" onClick={discard} title="Throw away unsaved changes">Discard changes</button>}
                   {AssetStore.isBase(selId) && AssetStore.isEdited(selId) && <button className="btn" onClick={revert}>Revert</button>}
                   <button className="btn btn-danger btn-sm" onClick={removeAsset}>Remove asset</button>
