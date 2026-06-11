@@ -208,6 +208,27 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
           acc += frac;
           return seg;
         })}
+        {(() => {
+          // percentage labels on the ring — one per slice, skipped when the slice
+          // is too thin to fit the text
+          let a2 = 0;
+          return data.map((d, i) => {
+            const frac = d.value / total;
+            const mid = (a2 + frac / 2) * 2 * Math.PI - Math.PI / 2;
+            a2 += frac;
+            if (frac < 0.055) return null;
+            const lx = c + r * Math.cos(mid);
+            const ly = c + r * Math.sin(mid);
+            return (
+              <text key={"pct" + i} x={lx} y={ly + 3} textAnchor="middle" fontSize="9.5"
+                fontWeight="700" fill="#0b1626" pointerEvents="none"
+                opacity={hover === null || hover === i ? 1 : 0.45}
+                fontFamily="'IBM Plex Sans',sans-serif">
+                {Math.round(frac * 100)}%
+              </text>
+            );
+          });
+        })()}
         <text x={c} y={c - 4} textAnchor="middle" fontSize="22" fontWeight="700"
           fill="var(--text)" fontFamily="'IBM Plex Mono',monospace">
           {hover != null ? data[hover].value : centerValue}
