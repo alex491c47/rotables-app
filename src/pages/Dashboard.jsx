@@ -77,9 +77,12 @@ function EngagementTag({ type, compact }) {
 }
 
 function CheckRow({ label, checked, onChange, swatch }) {
+  // preventDefault on mousedown stops the checkbox from grabbing focus on click,
+  // which is what made Chrome scroll the whole page to "reveal" a checkbox low in
+  // the sidebar. The click still toggles, so onChange fires as normal.
   return (
-    <label className="check-row">
-      <input type="checkbox" checked={checked} onChange={onChange} />
+    <label className="check-row" onMouseDown={(e) => e.preventDefault()}>
+      <input type="checkbox" checked={checked} onChange={onChange} tabIndex={-1} />
       <span className="check-box" aria-hidden="true"></span>
       {swatch && <span className="check-swatch" style={{ background: swatch }}></span>}
       <span className="check-label">{label}</span>
@@ -590,6 +593,19 @@ export default function Dashboard() {
     const lon = Math.atan2(x, z) / D;
     g.spinTo(lat, lon);
   }, [filters.location, selected]);
+
+  // safety net: the dashboard is a fixed full-screen layout with its own internal
+  // scroll regions — the .app box and the window should never scroll. If a focused
+  // control (e.g. a filter checkbox) makes the browser scroll them anyway, snap back.
+  useEffect(() => {
+    const app = document.querySelector(".app");
+    if (!app) return;
+    const pinApp = () => { if (app.scrollTop) app.scrollTop = 0; if (app.scrollLeft) app.scrollLeft = 0; };
+    const pinWin = () => { if (window.scrollY || window.scrollX) window.scrollTo(0, 0); };
+    app.addEventListener("scroll", pinApp, { passive: true });
+    window.addEventListener("scroll", pinWin, { passive: true });
+    return () => { app.removeEventListener("scroll", pinApp); window.removeEventListener("scroll", pinWin); };
+  }, []);
 
   const onToggle = useCallback((id) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
