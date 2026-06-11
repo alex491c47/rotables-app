@@ -452,13 +452,13 @@ const BrandMark = () => (
 function Header({ stats }) {
   return (
     <header className="app-header">
-      <div className="brand">
+      <NavLink to="/" end className="brand" title="Go to Asset Register">
         <div className="brand-mark"><BrandMark /></div>
         <div className="brand-text">
           <span className="brand-name">ST Engineering Solutions</span>
           <span className="brand-tag">Nacelle Asset Operations</span>
         </div>
-      </div>
+      </NavLink>
       <nav className="topnav">
         <NavLink to="/" end>Asset Register</NavLink>
         <NavLink to="/analytics">Analytics</NavLink>

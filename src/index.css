@@ -65,7 +65,8 @@ body.theme-light {
   background: linear-gradient(180deg, var(--panel2), var(--panel));
   position: sticky; top: 0; z-index: 20;
 }
-.brand { display: flex; align-items: center; gap: 13px; }
+.brand { display: flex; align-items: center; gap: 13px; text-decoration: none; color: inherit; cursor: pointer; border-radius: 8px; }
+a.brand:hover .brand-name { color: var(--accent); }
 .brand-mark { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; }
 .brand-mark img { width: 100%; height: 100%; object-fit: contain; display: block; }
 body.theme-light .brand-mark img { filter: invert(1) brightness(0.15); }
@@ -659,6 +660,8 @@ textarea.input { resize: vertical; min-height: 38px; }
 .tl-actions { display: flex; gap: 6px; }
 .tl-inline { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .tl-inline .input { width: 120px; padding: 5px 8px; font-size: 12px; }
+.tl-inline .input.tl-wide { width: 230px; }
+.tl-inline .tl-city { flex: 1 1 230px; min-width: 230px; }
 .tl-inline .select { width: auto; padding: 5px 8px; font-size: 12px; }
 .tl-inline label { font-size: 10px; display: flex; flex-direction: column; gap: 3px; color: var(--dim); }
 .tl-inline-msg { width: 100%; font-size: 11.5px; margin-top: 2px; }
@@ -668,6 +671,8 @@ textarea.input { resize: vertical; min-height: 38px; }
 .icon-btn { border: none; background: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 3px 6px; border-radius: 6px; }
 .icon-btn:hover { color: var(--text); background: var(--row-hover); }
 .icon-btn.del:hover { color: #f87171; }
+.icon-btn.save:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.icon-btn.save:disabled { opacity: .4; cursor: default; background: none; }
 .status-seg { display: inline-flex; background: var(--bg2); border: 1px solid var(--border2); border-radius: 9px; padding: 3px; gap: 2px; }
 .status-seg button { border: none; background: none; color: var(--text2); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-family: inherit; font-size: 12.5px; }
 .status-seg button.on { color: #04101d; font-weight: 600; }

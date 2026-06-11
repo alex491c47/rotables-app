@@ -280,7 +280,7 @@ function typeIdOf(e) {
   return byEvt ? byEvt.id : "pool";
 }
 
-function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
+function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, dirty }) {
   const [openIdx, setOpenIdx] = useState(null);
   const [msg, setMsg] = useState(null);
   const hist = asset.history;
@@ -359,18 +359,18 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
                       <label>Date
                         <DateField className="input mono" value={e.date} onChange={(v) => tryEditDate(idx, v)} />
                       </label>
-                      {fhas("to") && <label>{eDef.cat === "out" ? "Customer city" : "Location"}
-                        <CityInput className="input" value={e.to || ""} placeholder="Type city…"
+                      {fhas("to") && <label className="tl-city">{eDef.cat === "out" ? "Customer city" : "Location"}
+                        <CityInput className="input tl-wide" value={e.to || ""} placeholder="Type city…"
                           onChange={(v) => onEditEvent(idx, { to: v })} />
                       </label>}
-                      {fhas("dailyFee") && <label>Daily fee <input type="number" inputMode="numeric" className="input mono" defaultValue={e.dailyFee || 0}
-                        onBlur={(ev2) => onEditEvent(idx, { dailyFee: Number(ev2.target.value) || 0 })} /></label>}
-                      {fhas("monthlyRevenue") && <label>Monthly rev <input type="number" inputMode="numeric" className="input mono" defaultValue={e.monthlyRevenue || 0}
-                        onBlur={(ev2) => onEditEvent(idx, { monthlyRevenue: Number(ev2.target.value) || 0 })} /></label>}
-                      {fhas("exchangeFee") && <label>Exchange fee <input type="number" inputMode="numeric" className="input mono" defaultValue={e.exchangeFee || 0}
-                        onBlur={(ev2) => onEditEvent(idx, { exchangeFee: Number(ev2.target.value) || 0 })} /></label>}
-                      {fhas("recertFee") && <label>Recert fee <input type="number" inputMode="numeric" className="input mono" defaultValue={e.recertFee || 0}
-                        onBlur={(ev2) => onEditEvent(idx, { recertFee: Number(ev2.target.value) || 0 })} /></label>}
+                      {fhas("dailyFee") && <label>Daily fee <MoneyInput className="input mono" value={e.dailyFee || 0}
+                        onChange={(v) => onEditEvent(idx, { dailyFee: Number(v) || 0 })} /></label>}
+                      {fhas("monthlyRevenue") && <label>Monthly rev <MoneyInput className="input mono" value={e.monthlyRevenue || 0}
+                        onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
+                      {fhas("exchangeFee") && <label>Exchange fee <MoneyInput className="input mono" value={e.exchangeFee || 0}
+                        onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
+                      {fhas("recertFee") && <label>Recert fee <MoneyInput className="input mono" value={e.recertFee || 0}
+                        onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
                       {fhas("contractYears") && <label>Contract yrs <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
                         onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
                       {fhas("customer") && <label>Customer <input className="input" defaultValue={e.customer || ""}
@@ -384,6 +384,10 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent }) {
               </div>
               <div className="tl-actions">
                 <button className="icon-btn" title="Edit event" onClick={() => { setMsg(null); setOpenIdx(openIdx === idx ? null : idx); }}>✎</button>
+                {openIdx === idx && (
+                  <button className="icon-btn save" title="Save all changes" disabled={!dirty}
+                    onClick={() => { if (dirty && onSave) { onSave(); setOpenIdx(null); } }}>💾</button>
+                )}
                 <button className="icon-btn del" title="Remove event" onClick={() => { if (confirm("Remove this event from the timeline?")) onDeleteEvent(idx); }}>🗑</button>
               </div>
             </div>
@@ -568,15 +572,15 @@ export default function Editor() {
 
   const updateDraft = (next) => { setDraft(next); setDirty(true); };
 
+  // Edits only update the working draft — derived values (current location, status,
+  // revenue, card header) are recomputed by AssetStore.save when you click Save.
   const appendEvent = (e) => {
     const next = { ...draft, history: [...draft.history, e] };
-    AssetStore.recompute(next);
     setDraft(next); setDirty(true);
   };
   const editEvent = (idx, patch) => {
     const hist = draft.history.map((h, i) => (i === idx ? { ...h, ...patch } : h));
     const next = { ...draft, history: hist };
-    AssetStore.recompute(next);
     setDraft(next); setDirty(true);
   };
   const changeEventType = (idx, typeId) => {
@@ -595,12 +599,10 @@ export default function Editor() {
       return n;
     });
     const next = { ...draft, history: hist };
-    AssetStore.recompute(next);
     setDraft(next); setDirty(true);
   };
   const deleteEvent = (idx) => {
     const next = { ...draft, history: draft.history.filter((_, i) => i !== idx) };
-    AssetStore.recompute(next);
     setDraft(next); setDirty(true);
   };
 
@@ -612,10 +614,10 @@ export default function Editor() {
   return (
     <div className="app editor-page">
       <header className="app-header">
-        <div className="brand">
+        <NavLink to="/" end className="brand" title="Go to Asset Register">
           <div className="brand-mark"><BrandMark /></div>
           <div className="brand-text"><span className="brand-name">ST Engineering Solutions</span><span className="brand-tag">Asset Editor</span></div>
-        </div>
+        </NavLink>
         <nav className="topnav">
           <NavLink to="/" end>Asset Register</NavLink>
           <NavLink to="/analytics">Analytics</NavLink>
@@ -678,7 +680,7 @@ export default function Editor() {
               {dirty && <div className="banner banner-warn"><span>●</span> Unsaved changes — click <b>Save</b> to persist them and update the Register & Analytics views.</div>}
 
               <EventLogger asset={draft} onAppend={appendEvent} />
-              <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} />
+              <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} onSave={save} dirty={dirty} />
               <RawFields asset={draft} onChange={updateDraft} />
             </div>
           )}
