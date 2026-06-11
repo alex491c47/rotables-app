@@ -197,11 +197,12 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
           const dash = frac * circ;
           const seg = (
             <circle key={i} cx={c} cy={c} r={r} fill="none" stroke={d.color}
-              strokeWidth={hover === i ? thickness + 4 : thickness}
+              strokeWidth={thickness}
+              opacity={hover === null || hover === i ? 1 : 0.38}
               strokeDasharray={`${dash} ${circ - dash}`}
               strokeDashoffset={-acc * circ}
               transform={`rotate(-90 ${c} ${c})`}
-              style={{ transition: "stroke-width .12s, stroke-dasharray .5s cubic-bezier(.22,1,.36,1), stroke-dashoffset .5s cubic-bezier(.22,1,.36,1)" }}
+              style={{ transition: "opacity .15s, stroke-dasharray .5s cubic-bezier(.22,1,.36,1), stroke-dashoffset .5s cubic-bezier(.22,1,.36,1)" }}
               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
           );
           acc += frac;

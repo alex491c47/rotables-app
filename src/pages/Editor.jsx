@@ -128,9 +128,15 @@ function DateField({ value, onChange, className }) {
       {open && (
         <div className="cal">
           <div className="cal-head">
-            <button type="button" className="cal-nav" onClick={() => shift(-1)}>‹</button>
+            <div className="cal-nav-grp">
+              <button type="button" className="cal-nav" title="Previous year" onClick={() => shift(-12)}>«</button>
+              <button type="button" className="cal-nav" title="Previous month" onClick={() => shift(-1)}>‹</button>
+            </div>
             <span className="cal-title">{CAL_MONTHS[view.m]} {view.y}</span>
-            <button type="button" className="cal-nav" onClick={() => shift(1)}>›</button>
+            <div className="cal-nav-grp">
+              <button type="button" className="cal-nav" title="Next month" onClick={() => shift(1)}>›</button>
+              <button type="button" className="cal-nav" title="Next year" onClick={() => shift(12)}>»</button>
+            </div>
           </div>
           <div className="cal-grid cal-dow">
             {CAL_WEEKDAYS.map((w) => <span key={w} className="cal-dow-cell">{w}</span>)}
@@ -148,6 +154,18 @@ function DateField({ value, onChange, className }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* money input — shows thousand separators ("1,982,000") while editing.
+   onChange emits a plain digit string ("1982000") or "" so callers can Number() it. */
+function MoneyInput({ value, onChange, className, placeholder }) {
+  const digits = value == null ? "" : String(value).replace(/[^\d]/g, "");
+  const display = digits === "" ? "" : Number(digits).toLocaleString("en-US");
+  return (
+    <input className={className} inputMode="numeric" placeholder={placeholder}
+      value={display}
+      onChange={(e) => { const raw = e.target.value.replace(/[^\d]/g, ""); onChange(raw); }} />
   );
 }
 
@@ -234,12 +252,12 @@ function EventLogger({ asset, onAppend }) {
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
           <input className={cls("customer")} list="cust-list" value={f.customer} onChange={(e) => set("customer", e.target.value)} placeholder="Customer" />
           <datalist id="cust-list">{CUSTOMERS.map((c) => <option key={c} value={c} />)}</datalist></Field>}
-        {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><input type="number" inputMode="numeric" className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(e) => set("dailyFee", e.target.value)} /></Field>}
-        {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><input type="number" inputMode="numeric" className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(e) => set("monthlyRevenue", e.target.value)} /></Field>}
+        {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><MoneyInput className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(v) => set("dailyFee", v)} /></Field>}
+        {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
-        {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><input type="number" inputMode="numeric" className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(e) => set("exchangeFee", e.target.value)} /></Field>}
+        {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder="new P/N" /></Field>}
-        {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><input type="number" inputMode="numeric" className="input mono" value={f.recertFee} onChange={(e) => set("recertFee", e.target.value)} /></Field>}
+        {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
       {(isLease || def.contractType === "Exchange") && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
@@ -390,8 +408,8 @@ function RawFields({ asset, onChange }) {
         </Field>
         <Field label="Component"><Picker className="select" options={FILTER_OPTIONS.nacelle} value={asset.nacelle} onChange={(v) => set("nacelle", v)} /></Field>
         <Field label="Ownership"><Picker className="select" options={OWN_TYPES} value={asset.ownership || "Owned"} onChange={(v) => set("ownership", v)} /></Field>
-        <Field label="CLP (USD)" hint="catalogue list price"><input type="number" className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder="auto from type" onChange={(e) => set("clp", e.target.value === "" ? null : Number(e.target.value))} /></Field>
-        <Field label="Daily rate (USD)"><input type="number" className="input mono" value={asset.dailyRate || ""} onChange={(e) => set("dailyRate", Number(e.target.value) || 0)} /></Field>
+        <Field label="CLP (USD)" hint="catalogue list price"><MoneyInput className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder="auto from type" onChange={(v) => set("clp", v === "" ? null : Number(v))} /></Field>
+        <Field label="Daily rate (USD)"><MoneyInput className="input mono" value={asset.dailyRate || ""} onChange={(v) => set("dailyRate", v === "" ? 0 : Number(v))} /></Field>
         <Field label="Initial part number"><input className="input mono" value={asset.initialPartNumber || ""} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
         <Field label="Description" span><input className="input" value={asset.description || ""} onChange={(e) => set("description", e.target.value)} /></Field>
       </div>
@@ -483,12 +501,12 @@ function NewAssetModal({ onClose, onCreate }) {
               <Picker className={sx("nacelle")} options={FILTER_OPTIONS.nacelle} value={a.nacelle} onChange={(v) => set("nacelle", v)} />
             </Field>
             <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
-            <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><input type="number" inputMode="numeric" className={cx("clp") + " mono"} value={a.clp} onChange={(e) => set("clp", e.target.value)} /></Field>
+            <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><MoneyInput className={cx("clp") + " mono"} value={a.clp} onChange={(v) => set("clp", v)} /></Field>
             {capitalised && (
-              <Field label="Acquisition value (USD)" req hint="NBV & depreciation are based on this"><input type="number" inputMode="numeric" className={cx("acquisitionValue") + " mono"} value={a.acquisitionValue} onChange={(e) => set("acquisitionValue", e.target.value)} /></Field>
+              <Field label="Acquisition value (USD)" req hint="NBV & depreciation are based on this"><MoneyInput className={cx("acquisitionValue") + " mono"} value={a.acquisitionValue} onChange={(v) => set("acquisitionValue", v)} /></Field>
             )}
             {isSTL && (
-              <Field label="Daily lease-in cost (USD)" req hint="what we pay the lessor / day"><input type="number" inputMode="numeric" className={cx("dailyRate") + " mono"} value={a.dailyRate} onChange={(e) => set("dailyRate", e.target.value)} /></Field>
+              <Field label="Daily lease-in cost (USD)" req hint="what we pay the lessor / day"><MoneyInput className={cx("dailyRate") + " mono"} value={a.dailyRate} onChange={(v) => set("dailyRate", v)} /></Field>
             )}
             {capitalised && (
               <React.Fragment>

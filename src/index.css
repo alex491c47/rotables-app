@@ -27,7 +27,10 @@ body.theme-light {
 * { box-sizing: border-box; }
 html, body { margin: 0; min-height: 100%; }
 /* lock scroll on full-height pages (Dashboard, Editor); Analytics keeps its own scroll */
-html:has(.app), body:has(.app) { overflow: hidden; height: 100%; }
+/* overflow:clip (not hidden) — hidden is still programmatically scrollable, so
+   focusing a checkbox low in the sidebar (e.g. a city filter) scrolled the whole
+   page; clip removes the scroll container entirely so that can't happen */
+html:has(.app), body:has(.app) { overflow: clip; height: 100%; }
 body {
   color-scheme: dark; /* native widgets (select popups, date pickers) follow the theme */
   background:
@@ -616,6 +619,7 @@ body.theme-light .select {
   box-shadow: var(--shadow); padding: 10px;
 }
 .cal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal-nav-grp { display: flex; gap: 3px; }
 .cal-title { font-size: 13px; font-weight: 600; color: var(--text); }
 .cal-nav { width: 26px; height: 26px; border: 1px solid var(--border2); background: var(--bg2); color: var(--text); border-radius: 7px; cursor: pointer; font-size: 15px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .cal-nav:hover { background: var(--row-open); border-color: var(--accent); }
