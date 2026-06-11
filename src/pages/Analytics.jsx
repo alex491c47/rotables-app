@@ -389,21 +389,21 @@ export default function Analytics() {
           </Card>
 
           <Card title="Assets by engine type">
-            <Donut size={150}
+            <Donut size={190}
               data={ALL_TYPES.filter((t) => agg.byType[t].count).map((t) => ({ name: t, value: agg.byType[t].count, color: TYPE_COLOR[t] }))}
               centerLabel="assets" centerValue={agg.count} />
             <Legend items={ALL_TYPES.filter((t) => agg.byType[t].count).map((t) => ({ name: t, color: TYPE_COLOR[t], value: agg.byType[t].count }))} />
           </Card>
 
           <Card title="Removals by type" sub={periodLabel === "Life-to-date" ? "life-to-date" : periodLabel}>
-            <Donut size={150}
+            <Donut size={190}
               data={Object.keys(agg.removals).map((k) => ({ name: k.replace(" lease", ""), value: agg.removals[k], color: REMOVAL_COLOR[k] }))}
               centerLabel="removals" centerValue={Object.values(agg.removals).reduce((s, v) => s + v, 0)} />
             <Legend items={Object.keys(agg.removals).map((k) => ({ name: k, color: REMOVAL_COLOR[k], value: agg.removals[k] }))} />
           </Card>
 
           <Card title="Ownership split">
-            <Donut size={150}
+            <Donut size={190}
               data={Object.keys(OWN_COLOR).filter((o) => agg.byOwn[o]).map((o) => ({ name: o, value: agg.byOwn[o], color: OWN_COLOR[o] }))}
               centerLabel="owned" centerValue={`${Math.round(agg.owned / Math.max(1, agg.count) * 100)}%`} />
             <Legend items={Object.keys(OWN_COLOR).filter((o) => agg.byOwn[o]).map((o) => ({ name: o, color: OWN_COLOR[o], value: agg.byOwn[o] }))} />

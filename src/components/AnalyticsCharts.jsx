@@ -213,7 +213,7 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
           {hover != null ? data[hover].value : centerValue}
         </text>
         <text x={c} y={c + 15} textAnchor="middle" fontSize="10" fill="var(--dim)"
-          style={{ textTransform: "uppercase", letterSpacing: "1px" }}>
+          style={{ textTransform: "uppercase", letterSpacing: "0.5px" }}>
           {hover != null ? data[hover].name : centerLabel}
         </text>
       </svg>

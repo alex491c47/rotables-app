@@ -363,15 +363,15 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, dir
                         <CityInput className="input tl-wide" value={e.to || ""} placeholder="Type city…"
                           onChange={(v) => onEditEvent(idx, { to: v })} />
                       </label>}
-                      {fhas("dailyFee") && <label>Daily fee <MoneyInput className="input mono" value={e.dailyFee || 0}
+                      {fhas("dailyFee") && <label>Daily lease fee (USD) <MoneyInput className="input mono" value={e.dailyFee || 0}
                         onChange={(v) => onEditEvent(idx, { dailyFee: Number(v) || 0 })} /></label>}
-                      {fhas("monthlyRevenue") && <label>Monthly rev <MoneyInput className="input mono" value={e.monthlyRevenue || 0}
+                      {fhas("monthlyRevenue") && <label>Monthly revenue (USD) <MoneyInput className="input mono" value={e.monthlyRevenue || 0}
                         onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
-                      {fhas("exchangeFee") && <label>Exchange fee <MoneyInput className="input mono" value={e.exchangeFee || 0}
+                      {fhas("exchangeFee") && <label>Exchange fee (USD) <MoneyInput className="input mono" value={e.exchangeFee || 0}
                         onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
-                      {fhas("recertFee") && <label>Recert fee <MoneyInput className="input mono" value={e.recertFee || 0}
+                      {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
                         onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
-                      {fhas("contractYears") && <label>Contract yrs <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
+                      {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
                         onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
                       {fhas("customer") && <label>Customer <input className="input" defaultValue={e.customer || ""}
                         onBlur={(ev2) => onEditEvent(idx, { customer: ev2.target.value || null })} /></label>}

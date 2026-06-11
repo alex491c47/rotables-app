@@ -661,7 +661,7 @@ textarea.input { resize: vertical; min-height: 38px; }
 .tl-inline { display: flex; gap: 8px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
 .tl-inline .input { width: 120px; padding: 5px 8px; font-size: 12px; }
 .tl-inline .input.tl-wide { width: 230px; }
-.tl-inline .tl-city { flex: 1 1 230px; min-width: 230px; }
+.tl-inline .tl-city { flex: 0 0 auto; }
 .tl-inline .select { width: auto; padding: 5px 8px; font-size: 12px; }
 .tl-inline label { font-size: 10px; display: flex; flex-direction: column; gap: 3px; color: var(--dim); }
 .tl-inline-msg { width: 100%; font-size: 11.5px; margin-top: 2px; }
