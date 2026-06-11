@@ -59,19 +59,20 @@ alter table customers     enable row level security;
 alter table profiles      enable row level security;
 
 -- approved people can read the data; editors/admins can change it
-create policy "assets read"  on assets       for select using (is_approved());
-create policy "assets write" on assets       for all    using (can_write()) with check (can_write());
-create policy "events read"  on asset_events for select using (is_approved());
-create policy "events write" on asset_events for all    using (can_write()) with check (can_write());
-create policy "cities read"  on cities       for select using (is_approved());
-create policy "cities write" on cities       for all    using (can_write()) with check (can_write());
-create policy "cust read"    on customers    for select using (is_approved());
-create policy "cust write"   on customers    for all    using (can_write()) with check (can_write());
+-- (drop-if-exists first so this whole file is safe to re-run)
+drop policy if exists "assets read"  on assets;        create policy "assets read"  on assets       for select using (is_approved());
+drop policy if exists "assets write" on assets;        create policy "assets write" on assets       for all    using (can_write()) with check (can_write());
+drop policy if exists "events read"  on asset_events;  create policy "events read"  on asset_events for select using (is_approved());
+drop policy if exists "events write" on asset_events;  create policy "events write" on asset_events for all    using (can_write()) with check (can_write());
+drop policy if exists "cities read"  on cities;        create policy "cities read"  on cities       for select using (is_approved());
+drop policy if exists "cities write" on cities;        create policy "cities write" on cities       for all    using (can_write()) with check (can_write());
+drop policy if exists "cust read"    on customers;     create policy "cust read"    on customers    for select using (is_approved());
+drop policy if exists "cust write"   on customers;     create policy "cust write"   on customers    for all    using (can_write()) with check (can_write());
 
 -- profiles: you can see your own; admins can see & manage everyone
-create policy "profile self read"  on profiles for select using (id = auth.uid() or is_admin());
-create policy "profile self insert" on profiles for insert with check (id = auth.uid());
-create policy "profile admin write" on profiles for update using (is_admin()) with check (is_admin());
+drop policy if exists "profile self read"   on profiles; create policy "profile self read"   on profiles for select using (id = auth.uid() or is_admin());
+drop policy if exists "profile self insert" on profiles; create policy "profile self insert" on profiles for insert with check (id = auth.uid());
+drop policy if exists "profile admin write" on profiles; create policy "profile admin write" on profiles for update using (is_admin()) with check (is_admin());
 
 -- ============================================================================
 -- AFTER you have signed up once on the live site, make yourself the first
