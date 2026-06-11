@@ -5,6 +5,7 @@ import Analytics from './pages/Analytics'
 import Editor from './pages/Editor'
 import Admin from './pages/Admin'
 import Login from './pages/Login'
+import ResetPassword from './pages/ResetPassword'
 import { useAuth } from './lib/auth'
 
 const BrandMark = () => <img src="/logo.png" alt="ST Engineering" className="brand-mark-img" />
@@ -40,7 +41,8 @@ function Pending() {
 }
 
 export default function App() {
-  const { loading, session, approved } = useAuth()
+  const { loading, session, approved, recovery } = useAuth()
+  if (recovery) return <ResetPassword />
   if (loading) return <Splash />
   if (!session) return <Login />
   if (!approved) return <Pending />
