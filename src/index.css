@@ -516,6 +516,9 @@ body.theme-light .ms-opt input:checked + .ms-box::after { border-color: #fff; }
 .atable thead th.sorted { color: var(--accent); }
 .atable tbody td { padding: 9px 12px; border-bottom: 1px solid var(--border); white-space: nowrap; }
 .atable tbody tr.arow { cursor: pointer; }
+.atable tbody tr.arow-retired { opacity: .5; }
+.atable tbody tr.arow-retired:hover { opacity: .72; }
+.retired-tag { margin-left: 7px; font-size: 8.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--dim); border: 1px solid var(--border2); border-radius: 4px; padding: 1px 4px; vertical-align: middle; }
 .atable tbody tr:hover { background: var(--row-hover); }
 .atable tbody tr.arow-sel { background: rgba(56,189,248,0.10); box-shadow: inset 3px 0 0 var(--accent); }
 body.theme-light .atable tbody tr.arow-sel { background: rgba(14,116,200,0.08); }
@@ -545,6 +548,9 @@ body.theme-light .btn-primary:hover { color: #fff; }
 .btn-sm { padding: 4px 10px; font-size: 11.5px; }
 .aside { width: 300px; flex: 0 0 300px; display: flex; flex-direction: column; border-right: 1px solid var(--border); background: var(--panel); min-height: 0; }
 .aside-head { display: flex; gap: 8px; padding: 14px 16px 10px; }
+.aside-tabs { display: flex; gap: 4px; padding: 0 16px 10px; }
+.aside-tab { flex: 1; padding: 6px 8px; font-size: 12px; font-family: inherit; border: 1px solid var(--border2); background: var(--bg2); color: var(--dim); border-radius: 7px; cursor: pointer; }
+.aside-tab.on { color: var(--text); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .aside .search-wrap { padding: 0; flex: 1; }
 .aside .search-ico { left: 11px; top: 9px; }
 .aside .search-input { padding: 8px 10px 8px 32px; }
@@ -560,6 +566,7 @@ body.theme-light .btn-primary:hover { color: #fff; }
 .aitem-sub { font-size: 11px; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aitem-flag { font-size: 8.5px; font-weight: 700; letter-spacing: .5px; text-transform: uppercase; color: var(--wip); border: 1px solid rgba(250,204,21,.4); background: rgba(250,204,21,.12); padding: 1px 5px; border-radius: 4px; }
 .aitem-flag.new { color: var(--ready); border-color: rgba(52,211,153,.4); background: rgba(52,211,153,.12); }
+.aitem-flag.retired { color: var(--dim); border-color: var(--border2); background: var(--bg2); }
 .main { flex: 1; overflow-y: auto; min-width: 0; }
 .main::-webkit-scrollbar { width: 10px; }
 .main::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }

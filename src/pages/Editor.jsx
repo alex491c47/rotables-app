@@ -7,8 +7,9 @@ import { getDark, saveDark } from '../lib/theme';
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
   "WIP": { c: "var(--wip)" }, "Ready to ship": { c: "var(--ready)" }, "Out on lease": { c: "var(--lease)" },
+  "Retired": { c: "var(--dim)" },
 };
-const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b" };
+const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b", end: "#64748b" };
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
 const STATUSES = ["WIP", "Ready to ship", "Out on lease"];
 const CUSTOMERS = COMMON_CUSTOMERS;
@@ -25,8 +26,12 @@ const EVENT_TYPES = [
   { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "customer", "pn", "recertFee", "notes"], req: ["to", "pn"] },
   { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
+  // End-of-use events — retire the asset (drops off the Register, kept in Analytics + historical view)
+  { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Retired", cat: "end", fields: ["customer", "notes"], req: [] },
+  { id: "scrap", label: "End of use — scrapped for parts", evt: "Scrapped for parts", status: "Retired", cat: "end", fields: ["notes"], req: [] },
+  { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Retired", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
 ];
-const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee"];
+const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee", "salePrice"];
 
 const NOW_MS = AssetCalc.TODAY_MS;
 const dMs = (d) => Date.parse(d + "T00:00:00Z");
@@ -199,7 +204,7 @@ function Picker({ value, onChange, options, placeholder, className }) {
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = useState("pool");
   const def = EVENT_TYPES.find((t) => t.id === typeId);
-  const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", notes: "" });
+  const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = useState(makeBlank);
   const [errs, setErrs] = useState({});
   useEffect(() => { setF(makeBlank()); setErrs({}); }, [asset.assetNumber]);
@@ -227,6 +232,7 @@ function EventLogger({ asset, onAppend }) {
     if (has("monthlyRevenue")) e.monthlyRevenue = Number(f.monthlyRevenue) || 0;
     if (has("exchangeFee")) e.exchangeFee = Number(f.exchangeFee) || 0;
     if (has("recertFee") && f.recertFee !== "") e.recertFee = Number(f.recertFee) || 0;
+    if (has("salePrice") && f.salePrice !== "") e.salePrice = Number(f.salePrice) || 0;
     onAppend(e);
     setF(makeBlank());
     setErrs({});
@@ -256,7 +262,8 @@ function EventLogger({ asset, onAppend }) {
         {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder="new P/N" /></Field>}
         {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
-        {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
+        {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
+        {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
       {(isLease || def.contractType === "Exchange") && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
       <div className="row-actions" style={{ marginTop: 14 }}>
@@ -367,6 +374,8 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                         onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
                       {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
                         onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
+                      {fhas("salePrice") && <label>Sale price (USD) <MoneyInput className="input mono" value={e.salePrice || 0}
+                        onChange={(v) => onEditEvent(idx, { salePrice: Number(v) || 0 })} /></label>}
                       {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
                         onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
                       {fhas("customer") && <label className="tl-city">Customer
@@ -568,14 +577,17 @@ export default function Editor() {
   const [toast, setToast] = useState(null);
   const [showNew, setShowNew] = useState(false);
   const [tick, setTick] = useState(0);
+  const [showArchived, setShowArchived] = useState(false);
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    return AssetStore.list().filter((a) => !ql ||
+    const source = showArchived ? AssetStore.listArchived() : AssetStore.list();
+    return source.filter((a) => !ql ||
       (a.assetNumber + " " + a.partNumber + " " + a.aircraftType + " " + a.nacelle + " " + (a.customer || "") + " " + (a.location || "")).toLowerCase().includes(ql));
-  }, [q, tick]);
+  }, [q, tick, showArchived]);
+  const archivedCount = useMemo(() => AssetStore.listArchived().length, [tick]);
 
   const selectAsset = (id) => {
     setSelId(id);
@@ -656,6 +668,10 @@ export default function Editor() {
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => setShowNew(true)} title="Add new asset">+ New</button>
           </div>
+          <div className="aside-tabs">
+            <button className={"aside-tab" + (!showArchived ? " on" : "")} onClick={() => { setShowArchived(false); }}>Active</button>
+            <button className={"aside-tab" + (showArchived ? " on" : "")} onClick={() => { setShowArchived(true); }}>Historical{archivedCount ? ` (${archivedCount})` : ""}</button>
+          </div>
           <div className="alist">
             {list.map((a) => (
               <div key={a.assetNumber} className={"aitem" + (selId === a.assetNumber ? " sel" : "")} onClick={() => selectAsset(a.assetNumber)}>
@@ -664,11 +680,12 @@ export default function Editor() {
                   <div className="aitem-id">{a.assetNumber}</div>
                   <div className="aitem-sub">{a.aircraftType} · {a.nacelle}</div>
                 </div>
-                {AssetStore.isAdded(a.assetNumber) ? <span className="aitem-flag new">new</span>
+                {a.retired ? <span className="aitem-flag retired">retired</span>
+                  : AssetStore.isAdded(a.assetNumber) ? <span className="aitem-flag new">new</span>
                   : AssetStore.isEdited(a.assetNumber) ? <span className="aitem-flag">edited</span> : null}
               </div>
             ))}
-            {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>No matching assets.</div>}
+            {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>{showArchived ? "No historical assets yet." : "No matching assets."}</div>}
           </div>
         </aside>
 

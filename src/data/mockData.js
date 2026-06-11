@@ -3238,7 +3238,9 @@ AIRCRAFT.forEach((acType, acIdx) => {
     off += int(40, 110);
     backInPool(`Certified serviceable; entered the serviceable pool.`);
 
-    const cycles = int(0, 2);
+    // Short-term leases are leased in and shipped straight out — they don't sit in
+    // our pool building up a long history, so they get no past cycles (current only).
+    const cycles = ownership === "Short-term lease" ? 0 : int(0, 2);
     for (let c = 0; c < cycles; c++) {
       relocate();
       off += int(8, 24);
@@ -3302,13 +3304,13 @@ AIRCRAFT.forEach((acType, acIdx) => {
       }
     }
 
-    const finalStatus = STATUSES[(acIdx * 20 + i) % 3];
+    const finalStatus = ownership === "Short-term lease" ? "Out on lease" : STATUSES[(acIdx * 20 + i) % 3];
     let curEngagement = null, curCustomer = null, curContractYears = null, tailDays;
 
     if (finalStatus === "Out on lease") {
       relocate();
       off += int(8, 22);
-      const type = pick(["Short-term lease", "Long-term lease"]);
+      const type = ownership === "Short-term lease" ? "Short-term lease" : pick(["Short-term lease", "Long-term lease"]);
       const cust = pick(CUSTOMERS);
       const dest = pick(CUST_CITIES);
       curEngagement = type; curCustomer = cust;
@@ -3411,6 +3413,52 @@ EXCHANGE_EXAMPLES.forEach((x) => {
     location: x.hub, customer: x.cust, dailyRate,
     totalRevenue: 0, daysOnLease: 0, lastUpdated: ev[ev.length - 1].date, history: ev,
     exchangeCore: true,
+  });
+});
+
+// Historical archive — short-term leases used in 2025 to cover removals, since
+// returned to the lessor. These are RETIRED: they don't appear in the active
+// Register, only in the Editor's historical view and (greyed) in Analytics, where
+// they still count toward 2025 figures. Base assets aren't re-derived on load, so
+// the computed fields are set here directly.
+const ARCHIVED_STL = [
+  { ac: "A320LEAP",    nacelle: "Thrust Reverser", lessor: "Collins Aerospace",   cust: "SAS Scandinavian",  hub: "Copenhagen",       start: "2025-01-22", lease: 110, daily: 950 },
+  { ac: "A320LEAP",    nacelle: "Thrust Reverser", lessor: "Safran",              cust: "Lufthansa Technik", hub: "Frankfurt am Main", start: "2025-03-06", lease: 80,  daily: 1020 },
+  { ac: "A320LEAP",    nacelle: "Thrust Reverser", lessor: "AJW Group (lessor)",  cust: "Turkish Airlines",  hub: "Istanbul",         start: "2025-04-18", lease: 140, daily: 890 },
+  { ac: "A320PW1000G", nacelle: "Thrust Reverser", lessor: "Collins Aerospace",   cust: "IndiGo",            hub: "Mumbai",           start: "2025-05-09", lease: 70,  daily: 1010 },
+  { ac: "A320LEAP",    nacelle: "Thrust Reverser", lessor: "AJW Group (lessor)",  cust: "Emirates",          hub: "Dubai",            start: "2025-06-12", lease: 100, daily: 1100 },
+];
+const addDays = (iso, n) => new Date(Date.parse(iso + "T00:00:00Z") + n * DAY).toISOString().slice(0, 10);
+ARCHIVED_STL.forEach((x) => {
+  counter += int(3, 17);
+  const prefix = PART_PREFIX[x.nacelle];
+  const engine = ENGINE[x.ac];
+  const pnNum = int(1000, 9899);
+  const partNumber = makePN(prefix, engine, pnNum, 0);
+  const assetNumber = `STE-${counter}`;
+  const revenue = x.lease * x.daily;
+  const inDate = addDays(x.start, -10);
+  const endDate = addDays(x.start, x.lease);
+  const history = [
+    { date: inDate, from: null, to: x.hub, event: "Induction", cat: "shop", status: "WIP", customer: x.lessor,
+      contractType: null, contractYears: null, revenue: 0, leaseDays: null, pn: partNumber,
+      notes: `Short-term core leased in from ${x.lessor} to cover a removal; inducted at ${x.hub}.` },
+    { date: x.start, from: x.hub, to: x.hub, event: "Short-term lease", cat: "out", status: "Out on lease",
+      customer: x.cust, contractType: "Short-term lease", contractYears: null, revenue, leaseDays: x.lease, pn: partNumber,
+      notes: `Dispatched to ${x.cust} on short-term lease.` },
+    { date: endDate, from: x.hub, to: x.hub, event: "Returned — end of lease", cat: "end", status: "Retired",
+      customer: x.lessor, contractType: null, contractYears: null, revenue: 0, leaseDays: null, pn: partNumber,
+      notes: `Lease ended; unit returned to ${x.lessor}. No longer in the ST Engineering pool.` },
+  ];
+  assets.push({
+    assetNumber, aircraftType: x.ac, nacelle: x.nacelle, ownership: "Short-term lease",
+    partNumber, initialPartNumber: partNumber, pnChanged: false,
+    description: `${engine} ${x.nacelle} — ${x.ac} (ATA 78)`,
+    status: "Retired", previousStatus: "Out on lease",
+    engagementType: null, contractYears: null,
+    location: x.hub, customer: x.lessor, dailyRate: x.daily,
+    totalRevenue: revenue, daysOnLease: x.lease, lastUpdated: endDate, history,
+    retired: true, retiredReason: "Returned — end of lease", retiredDate: endDate,
   });
 });
 

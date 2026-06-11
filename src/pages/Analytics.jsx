@@ -178,7 +178,7 @@ export default function Analytics() {
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
-  const AN = useMemo(() => buildAN(AssetStore.list()), []);
+  const AN = useMemo(() => buildAN(AssetStore.listAll()), []);
   const ALL_TYPES = useMemo(() => [...new Set(AN.assets.map((a) => a.aircraftType))].sort(), [AN]);
   const TYPE_COLOR = useMemo(() => {
     const m = {};
@@ -278,6 +278,9 @@ export default function Analytics() {
       turn: r.turn == null ? -1 : r.turn,
     }[sortKey]);
     data.sort((x, y) => {
+      // retired assets always sink to the bottom, regardless of the active sort
+      const rx = x.a.ref && x.a.ref.retired ? 1 : 0, ry = y.a.ref && y.a.ref.retired ? 1 : 0;
+      if (rx !== ry) return rx - ry;
       const a = get(x), b = get(y);
       if (typeof a === "string") return sortDir * a.localeCompare(b);
       return sortDir * (a - b);
@@ -379,6 +382,8 @@ export default function Analytics() {
             sub={agg.acq > 0 ? fmtPct(agg.accumDep / agg.acq) + " of capitalised" : "—"} />
           <KPI label={`Asset turn · ${periodLabel}`} value={<AnimatedNumber value={agg.turn} format={(v) => v.toFixed(2) + "×"} />} sub="revenue ÷ NBV" />
           <KPI label="Own vs leased-in" value={<span><AnimatedNumber value={agg.owned} format={(v) => Math.round(v)} /> / <AnimatedNumber value={agg.leasedIn} format={(v) => Math.round(v)} /></span>} sub="owned · leased-in" />
+          <KPI label={`Short-term lease cost · ${periodLabel}`} value={<AnimatedNumber value={agg.leaseIn} format={fmtUSD} />} tone="wip"
+            sub={agg.leasedIn ? `paid to lessors · ${agg.leasedIn} unit${agg.leasedIn === 1 ? "" : "s"}` : "no leased-in units"} />
         </div>
 
         <div className="grid">
@@ -435,10 +440,10 @@ export default function Analytics() {
               </thead>
               <tbody>
                 {rows.map(({ a, revenue, util, turn, nbv, dep }) => (
-                  <tr key={a.assetNumber} className={"arow" + (selectedAsset === a.assetNumber ? " arow-sel" : "")}
+                  <tr key={a.assetNumber} className={"arow" + (selectedAsset === a.assetNumber ? " arow-sel" : "") + (a.ref && a.ref.retired ? " arow-retired" : "")}
                     onClick={() => setSelectedAsset(selectedAsset === a.assetNumber ? null : a.assetNumber)}
-                    title={selectedAsset === a.assetNumber ? "Click to clear filter" : "Click to filter to this asset"}>
-                    <td className="mono strong">{a.assetNumber}</td>
+                    title={a.ref && a.ref.retired ? "Retired — no longer in the active register; still counted in historical figures" : (selectedAsset === a.assetNumber ? "Click to clear filter" : "Click to filter to this asset")}>
+                    <td className="mono strong">{a.assetNumber}{a.ref && a.ref.retired ? <span className="retired-tag">retired</span> : null}</td>
                     <td><span className="ttag" style={{ color: TYPE_COLOR[a.aircraftType], borderColor: TYPE_COLOR[a.aircraftType] + "55", background: TYPE_COLOR[a.aircraftType] + "14" }}>{a.aircraftType}</span></td>
                     <td>{a.nacelle}</td>
                     <td><span className="otag" style={{ color: OWN_COLOR[a.ownership] }}>● {a.ownership}</span></td>

@@ -18,7 +18,7 @@ const dateMs = (d) => Date.parse(d + "T00:00:00Z");
 
 export const AssetCalc = {
   TODAY_MS,
-  isRated: (e) => e.dailyFee != null || e.monthlyRevenue != null || e.exchangeFee != null || e.recertFee != null,
+  isRated: (e) => e.dailyFee != null || e.monthlyRevenue != null || e.exchangeFee != null || e.recertFee != null || e.salePrice != null,
   leaseDays(hist, i) {
     const e = hist[i];
     if (!this.isRated(e)) return e.leaseDays != null ? e.leaseDays : null;
@@ -32,6 +32,7 @@ export const AssetCalc = {
     if (e.monthlyRevenue != null) return (e.monthlyRevenue || 0) * (days || 0) / (365.25 / 12);
     if (e.exchangeFee != null) return e.exchangeFee || 0;
     if (e.recertFee != null) return e.recertFee || 0;
+    if (e.salePrice != null) return e.salePrice || 0;
     return e.revenue || 0;
   },
 };
@@ -79,6 +80,11 @@ function recompute(a) {
   a.totalRevenue = ev.reduce((s, e) => s + (e.revenue || 0), 0);
   a.daysOnLease = ev.reduce((s, e) => s + (e.leaseDays || 0), 0);
   a.pnChanged = !!a.partNumber && a.partNumber !== a.initialPartNumber;
+  // an asset is retired/archived once its final event ends its use (returned, scrapped, sold)
+  const lastEv = ev[ev.length - 1];
+  a.retired = !!(lastEv && lastEv.cat === "end");
+  a.retiredReason = a.retired ? lastEv.event : null;
+  a.retiredDate = a.retired ? lastEv.date : null;
   return a;
 }
 
@@ -98,7 +104,9 @@ function build() {
 }
 
 export const AssetStore = {
-  list: () => currentAssets,
+  list: () => currentAssets.filter((a) => !a.retired),   // active assets — Register, Editor, globe
+  listAll: () => currentAssets,                          // everything incl. retired — Analytics
+  listArchived: () => currentAssets.filter((a) => a.retired), // retired only — Editor historical view
   get: (id) => currentAssets.find((a) => a.assetNumber === id),
   baseGet: (id) => baseById[id] || null,
   isBase: (id) => !!baseById[id],
