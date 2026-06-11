@@ -79,6 +79,34 @@ function SuggestInput({ value, onChange, options, showAll, className, placeholde
 }
 const CityInput = (props) => <SuggestInput options={CITY_NAMES} placeholder="Start typing a city…" {...props} />;
 
+/* themed dropdown for fixed choices — looks like the suggestion lists above,
+   but behaves like a <select> (click to open, pick one, no free text) */
+function Picker({ value, onChange, options, placeholder, className }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  return (
+    <div className="city-ac" ref={ref}>
+      <button type="button" className={(className || "select") + " picker-btn"}
+        onClick={() => setOpen((o) => !o)}>
+        <span className={value ? "" : "picker-ph"}>{value || placeholder || "— select —"}</span>
+      </button>
+      {open && (
+        <ul className="city-ac-list">
+          {options.map((o) => (
+            <li key={o} className={"city-ac-item" + (o === value ? " sel" : "")}
+              onMouseDown={(e) => { e.preventDefault(); onChange(o); setOpen(false); }}>{o}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = useState("pool");
   const def = EVENT_TYPES.find((t) => t.id === typeId);
@@ -289,10 +317,8 @@ function RawFields({ asset, onChange }) {
           <SuggestInput className="input" options={FILTER_OPTIONS.aircraft} showAll
             value={asset.aircraftType} onChange={(v) => set("aircraftType", v)} placeholder="Select or type new…" />
         </Field>
-        <Field label="Component"><select className="select" value={asset.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
-          {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}</select></Field>
-        <Field label="Ownership"><select className="select" value={asset.ownership || "Owned"} onChange={(e) => set("ownership", e.target.value)}>
-          {OWN_TYPES.map((t) => <option key={t}>{t}</option>)}</select></Field>
+        <Field label="Component"><Picker className="select" options={FILTER_OPTIONS.nacelle} value={asset.nacelle} onChange={(v) => set("nacelle", v)} /></Field>
+        <Field label="Ownership"><Picker className="select" options={OWN_TYPES} value={asset.ownership || "Owned"} onChange={(v) => set("ownership", v)} /></Field>
         <Field label="CLP (USD)" hint="catalogue list price"><input type="number" className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder="auto from type" onChange={(e) => set("clp", e.target.value === "" ? null : Number(e.target.value))} /></Field>
         <Field label="Daily rate (USD)"><input type="number" className="input mono" value={asset.dailyRate || ""} onChange={(e) => set("dailyRate", Number(e.target.value) || 0)} /></Field>
         <Field label="Initial part number"><input className="input mono" value={asset.initialPartNumber || ""} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
@@ -376,20 +402,14 @@ function NewAssetModal({ onClose, onCreate }) {
           <div className="grid2">
             <Field label="Asset number" req><input className={cx("assetNumber") + " mono"} value={a.assetNumber} onChange={(e) => set("assetNumber", e.target.value)} /></Field>
             <Field label="Ownership" req>
-              <select className={sx("ownership")} value={a.ownership} onChange={(e) => set("ownership", e.target.value)}>
-                <option value="" disabled>— select —</option>
-                {OWN_TYPES.map((t) => <option key={t}>{t}</option>)}
-              </select>
+              <Picker className={sx("ownership")} options={OWN_TYPES} value={a.ownership} onChange={(v) => set("ownership", v)} />
             </Field>
             <Field label="A/C+Engine" req>
               <SuggestInput className={cx("aircraftType")} options={FILTER_OPTIONS.aircraft} showAll
                 value={a.aircraftType} onChange={(v) => set("aircraftType", v)} placeholder="Select or type new…" />
             </Field>
             <Field label="Component" req>
-              <select className={sx("nacelle")} value={a.nacelle} onChange={(e) => set("nacelle", e.target.value)}>
-                <option value="" disabled>— select —</option>
-                {FILTER_OPTIONS.nacelle.map((t) => <option key={t}>{t}</option>)}
-              </select>
+              <Picker className={sx("nacelle")} options={FILTER_OPTIONS.nacelle} value={a.nacelle} onChange={(v) => set("nacelle", v)} />
             </Field>
             <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
             <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><input type="number" inputMode="numeric" className={cx("clp") + " mono"} value={a.clp} onChange={(e) => set("clp", e.target.value)} /></Field>
@@ -401,17 +421,13 @@ function NewAssetModal({ onClose, onCreate }) {
             )}
             {capitalised && (
               <React.Fragment>
-                <Field label="Depreciation method" req><select className="select" value={a.depMethod} onChange={(e) => set("depMethod", e.target.value)}>
-                  <option>Straight-line</option><option>Declining balance</option></select></Field>
+                <Field label="Depreciation method" req><Picker className="select" options={["Straight-line", "Declining balance"]} value={a.depMethod} onChange={(v) => set("depMethod", v)} /></Field>
                 <Field label="Depreciation years" req><input type="number" inputMode="numeric" className={cx("depLife") + " mono"} value={a.depLife} onChange={(e) => set("depLife", e.target.value)} /></Field>
                 <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={a.depResidual} onChange={(e) => set("depResidual", e.target.value)} /></Field>
               </React.Fragment>
             )}
             <Field label="Status" req>
-              <select className={sx("status")} value={a.status} onChange={(e) => set("status", e.target.value)}>
-                <option value="" disabled>— select —</option>
-                {STATUSES.map((t) => <option key={t}>{t}</option>)}
-              </select>
+              <Picker className={sx("status")} options={STATUSES} value={a.status} onChange={(v) => set("status", v)} />
             </Field>
             <Field label="Induction date" req><input type="date" className={cx("inDate") + " mono"} value={a.inDate} onChange={(e) => set("inDate", e.target.value)} /></Field>
             <Field label="Hub / location" req>

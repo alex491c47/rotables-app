@@ -595,7 +595,17 @@ body.theme-light .select {
   box-shadow: var(--shadow); max-height: 240px; overflow-y: auto;
 }
 .city-ac-item { padding: 8px 10px; border-radius: 7px; cursor: pointer; font-size: 13px; color: var(--text); }
-.city-ac-item:hover { background: var(--row-hover); }
+/* alternating rows — every other row a touch lighter blue; hover is stronger still */
+.city-ac-item:nth-child(even) { background: var(--row-hover); }
+.city-ac-item:hover { background: var(--row-open); }
+.city-ac-item.sel { color: var(--accent); font-weight: 600; }
+/* slimmer scrollbar inside the dropdown lists */
+.city-ac-list::-webkit-scrollbar { width: 5px; }
+.city-ac-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+.city-ac-list { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+/* themed dropdown button (Picker) — matches the .select look but opens our own list */
+.picker-btn { text-align: left; display: flex; align-items: center; line-height: 1.3; }
+.picker-btn .picker-ph { color: var(--faint); }
 /* Editor readability — secondary text was too dim against the dark background */
 .editor-page { --text2: #c3d1e3; --dim: #92a8c2; --faint: #71869e; }
 body.theme-light .editor-page { --text2: #324a66; --dim: #5d7088; --faint: #8497ad; }
