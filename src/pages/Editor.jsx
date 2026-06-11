@@ -249,8 +249,7 @@ function EventLogger({ asset, onAppend }) {
           <CityInput className={cls("to")} value={f.to} onChange={(v) => set("to", v)} placeholder={`Type ${def.cat === "out" ? "destination city" : "location"}…`} />
         </Field>}
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
-          <input className={cls("customer")} list="cust-list" value={f.customer} onChange={(e) => set("customer", e.target.value)} placeholder="Customer" />
-          <datalist id="cust-list">{CUSTOMERS.map((c) => <option key={c} value={c} />)}</datalist></Field>}
+          <SuggestInput className={cls("customer")} options={CUSTOMERS} showAll value={f.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" /></Field>}
         {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><MoneyInput className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(v) => set("dailyFee", v)} /></Field>}
         {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
@@ -372,8 +371,9 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                         onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
                       {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
                         onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
-                      {fhas("customer") && <label>Customer <input className="input" defaultValue={e.customer || ""}
-                        onBlur={(ev2) => onEditEvent(idx, { customer: ev2.target.value || null })} /></label>}
+                      {fhas("customer") && <label className="tl-city">Customer
+                        <SuggestInput className="input tl-wide" options={CUSTOMERS} showAll value={e.customer || ""}
+                          onChange={(v) => onEditEvent(idx, { customer: v || null })} placeholder="Customer…" /></label>}
                       {fhas("pn") && <label>P/N received <input className="input mono" defaultValue={e.pn || ""}
                         onBlur={(ev2) => onEditEvent(idx, { pn: ev2.target.value || asset.partNumber })} /></label>}
                       {msg && msg.idx === idx && <div className={"tl-inline-msg " + (msg.ok ? "ok" : "err")}>{msg.text}</div>}
@@ -422,8 +422,12 @@ function RawFields({ asset, onChange }) {
         <Field label="Component"><Picker className="select" options={FILTER_OPTIONS.nacelle} value={asset.nacelle} onChange={(v) => set("nacelle", v)} /></Field>
         <Field label="Ownership"><Picker className="select" options={OWN_TYPES} value={asset.ownership || "Owned"} onChange={(v) => set("ownership", v)} /></Field>
         <Field label="CLP (USD)" hint="catalogue list price"><MoneyInput className="input mono" value={asset.clp != null ? asset.clp : ""} placeholder="auto from type" onChange={(v) => set("clp", v === "" ? null : Number(v))} /></Field>
-        <Field label="Daily rate (USD)"><MoneyInput className="input mono" value={asset.dailyRate || ""} onChange={(v) => set("dailyRate", v === "" ? 0 : Number(v))} /></Field>
         <Field label="Initial part number"><input className="input mono" value={asset.initialPartNumber || ""} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
+        {!isSTL && <Field label="Acquisition value (USD)" hint="NBV & depreciation are based on this"><MoneyInput className="input mono" value={asset.acquisitionValue != null ? asset.acquisitionValue : ""} onChange={(v) => set("acquisitionValue", v === "" ? null : Number(v))} /></Field>}
+        {!isSTL && <Field label="Depreciation method"><Picker className="select" options={["Straight-line", "Declining balance"]} value={asset.depMethod || "Straight-line"} onChange={(v) => set("depMethod", v)} /></Field>}
+        {!isSTL && <Field label="Depreciation years"><input type="number" inputMode="numeric" className="input mono" value={asset.depLife != null ? asset.depLife : ""} onChange={(e) => set("depLife", e.target.value === "" ? null : Number(e.target.value))} /></Field>}
+        {!isSTL && <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={asset.depResidual != null ? Math.round(asset.depResidual * 100) : ""} onChange={(e) => set("depResidual", e.target.value === "" ? 0 : (Number(e.target.value) || 0) / 100)} /></Field>}
+        {isSTL && <Field label="Daily lease-in cost (USD)" hint="what we pay the lessor / day — short-term lease only"><MoneyInput className="input mono" value={asset.dailyRate || ""} onChange={(v) => set("dailyRate", v === "" ? 0 : Number(v))} /></Field>}
         <Field label="Description" span><input className="input" value={asset.description || ""} onChange={(e) => set("description", e.target.value)} /></Field>
       </div>
 
@@ -622,7 +626,7 @@ export default function Editor() {
   };
 
   const save = () => { AssetStore.save(draft); setDirty(false); refresh(); selectAsset(draft.assetNumber); flash("Saved — changes flow to Register & Analytics"); };
-  const discard = () => { if (!dirty || confirm("Discard your unsaved changes to this asset?")) { selectAsset(selId); flash("Unsaved changes discarded"); } };
+  const discard = () => { selectAsset(selId); flash("Unsaved changes discarded"); };
   const revert = () => { AssetStore.revert(selId); refresh(); selectAsset(selId); flash("Reverted to generated data"); };
   const removeAsset = () => { if (!confirm("Remove this asset from the register?")) return; const id = selId; AssetStore.remove(id); setSelId(null); setDraft(null); refresh(); flash("Asset removed"); };
   const createAsset = (a) => { AssetStore.save(a); setShowNew(false); refresh(); selectAsset(a.assetNumber); flash("Asset created"); };

@@ -183,7 +183,7 @@ export function StackBar({ rows, height = 26 }) {
 
 export function Donut({ data, size = 150, thickness = 26, centerLabel, centerValue }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const pad = 30;                 // room around the ring for outside labels + leader lines
+  const pad = 40;                 // room around the ring for outside labels + leader lines
   const box = size + pad * 2;
   const r = (size - thickness) / 2;
   const c = box / 2;              // centre of the padded canvas
@@ -222,15 +222,15 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
             if (frac < 0.03) return null;
             const cos = Math.cos(mid), sin = Math.sin(mid);
             const x1 = c + outer * cos, y1 = c + outer * sin;       // ring edge
-            const x2 = c + (outer + 12) * cos, y2 = c + (outer + 12) * sin; // elbow
+            const x2 = c + (outer + 22) * cos, y2 = c + (outer + 22) * sin; // elbow
             const right = cos >= 0;
-            const lx = x2 + (right ? 4 : -4);
+            const lx = x2 + (right ? 5 : -5);
             return (
               <g key={"pct" + i} opacity={hover === null || hover === i ? 1 : 0.4}>
                 <polyline points={`${x1},${y1} ${x2},${y2}`} fill="none"
-                  stroke={d.color} strokeWidth="1.3" />
-                <text x={lx} y={y2 + 3.2} textAnchor={right ? "start" : "end"}
-                  fontSize="10.5" fontWeight="700" fill="var(--text2)"
+                  stroke={d.color} strokeWidth="1.4" />
+                <text x={lx} y={y2 + 3.6} textAnchor={right ? "start" : "end"}
+                  fontSize="12" fontWeight="700" fill="var(--text)"
                   fontFamily="'IBM Plex Sans',sans-serif">
                   {Math.round(frac * 100)}%
                 </text>
