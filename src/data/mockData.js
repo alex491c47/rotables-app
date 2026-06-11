@@ -3446,7 +3446,7 @@ ARCHIVED_STL.forEach((x) => {
     { date: x.start, from: x.hub, to: x.hub, event: "Short-term lease", cat: "out", status: "Out on lease",
       customer: x.cust, contractType: "Short-term lease", contractYears: null, revenue, leaseDays: x.lease, pn: partNumber,
       notes: `Dispatched to ${x.cust} on short-term lease.` },
-    { date: endDate, from: x.hub, to: x.hub, event: "Returned — end of lease", cat: "end", status: "Retired",
+    { date: endDate, from: x.hub, to: x.hub, event: "Returned — end of lease", cat: "end", status: "Returned",
       customer: x.lessor, contractType: null, contractYears: null, revenue: 0, leaseDays: null, pn: partNumber,
       notes: `Lease ended; unit returned to ${x.lessor}. No longer in the ST Engineering pool.` },
   ];
@@ -3454,7 +3454,7 @@ ARCHIVED_STL.forEach((x) => {
     assetNumber, aircraftType: x.ac, nacelle: x.nacelle, ownership: "Short-term lease",
     partNumber, initialPartNumber: partNumber, pnChanged: false,
     description: `${engine} ${x.nacelle} — ${x.ac} (ATA 78)`,
-    status: "Retired", previousStatus: "Out on lease",
+    status: "Returned", previousStatus: "Out on lease",
     engagementType: null, contractYears: null,
     location: x.hub, customer: x.lessor, dailyRate: x.daily,
     totalRevenue: revenue, daysOnLease: x.lease, lastUpdated: endDate, history,

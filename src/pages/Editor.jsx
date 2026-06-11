@@ -8,7 +8,8 @@ import { effectiveFinance } from '../lib/analyticsModel';
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
   "WIP": { c: "var(--wip)" }, "Ready to ship": { c: "var(--ready)" }, "Out on lease": { c: "var(--lease)" },
-  "Retired": { c: "var(--dim)" },
+  // end-of-use states
+  "Returned": { c: "#7c93b0" }, "Sold": { c: "#5fa888" }, "Retired": { c: "var(--dim)" }, "Destroyed": { c: "#c97b7b" },
 };
 const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b", end: "#64748b" };
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
@@ -27,10 +28,11 @@ const EVENT_TYPES = [
   { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "customer", "pn", "recertFee", "notes"], req: ["to", "pn"] },
   { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
-  // End-of-use events — retire the asset (drops off the Register, kept in Analytics + historical view)
-  { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Retired", cat: "end", fields: ["customer", "notes"], req: [] },
+  // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
+  { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["customer", "notes"], req: [] },
+  { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Sold", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
   { id: "scrap", label: "End of use — scrapped for parts", evt: "Scrapped for parts", status: "Retired", cat: "end", fields: ["notes"], req: [] },
-  { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Retired", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
+  { id: "destroyed", label: "End of use — destroyed (fire / write-off)", evt: "Destroyed", status: "Destroyed", cat: "end", fields: ["customer", "notes"], req: [] },
 ];
 const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee", "salePrice"];
 
@@ -53,7 +55,7 @@ function Field({ label, hint, children, span, req }) {
    showAll: list opens on focus with every option (short lists like engine types).
    Otherwise the list only opens once typing has narrowed the options to ≤7
    matches (long lists like the 3,000+ airports). Free text is always allowed. */
-function SuggestInput({ value, onChange, options, showAll, className, placeholder }) {
+function SuggestInput({ value, onChange, options, showAll, limit, className, placeholder }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -64,7 +66,10 @@ function SuggestInput({ value, onChange, options, showAll, className, placeholde
   const q = (value || "").trim().toLowerCase();
   const matches = q ? options.filter((c) => c.toLowerCase().includes(q)) : (showAll ? options : []);
   const exact = matches.length === 1 && matches[0].toLowerCase() === q;
-  const show = open && matches.length > 0 && !exact && (showAll || (q.length > 0 && matches.length <= 7));
+  // long lists (e.g. cities) open from the first letter typed, capped to `limit`;
+  // short lists (showAll) open on focus with everything
+  const shown = limit ? matches.slice(0, limit) : matches;
+  const show = open && shown.length > 0 && !exact && (showAll || q.length > 0);
   return (
     <div className="city-ac" ref={ref}>
       <input className={className || "input"} value={value || ""} placeholder={placeholder}
@@ -73,16 +78,17 @@ function SuggestInput({ value, onChange, options, showAll, className, placeholde
         onChange={(e) => { setOpen(true); onChange(e.target.value); }} />
       {show && (
         <ul className="city-ac-list">
-          {matches.map((c) => (
+          {shown.map((c) => (
             <li key={c} className="city-ac-item"
               onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false); }}>{c}</li>
           ))}
+          {limit && matches.length > shown.length && <li className="city-ac-more">+{matches.length - shown.length} more — keep typing…</li>}
         </ul>
       )}
     </div>
   );
 }
-const CityInput = (props) => <SuggestInput options={CITY_NAMES} placeholder="Start typing a city…" {...props} />;
+const CityInput = (props) => <SuggestInput options={CITY_NAMES} limit={9} placeholder="Type a city…" {...props} />;
 
 /* themed date picker — replaces the browser's native calendar (which can't be
    styled to match). value/onChange use ISO "YYYY-MM-DD" strings. */
@@ -246,9 +252,8 @@ function EventLogger({ asset, onAppend }) {
       <h3 className="section-title">Log an event <span className="hint">appends to the timeline & recalculates the asset</span></h3>
       <div className="grid3">
         <Field label="Event type" span>
-          <select className="select" value={typeId} onChange={(e) => { setTypeId(e.target.value); setErrs({}); }}>
-            {EVENT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+          <Picker className="select" options={EVENT_TYPES.map((t) => t.label)} value={def.label}
+            onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({}); } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
@@ -355,10 +360,9 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                   const fhas = (k) => eDef.fields.includes(k);
                   return (
                     <div className="tl-inline">
-                      <label>Event type
-                        <select className="select" value={tId} onChange={(ev2) => { setMsg(null); onChangeType(idx, ev2.target.value); }}>
-                          {EVENT_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                        </select>
+                      <label className="tl-city">Event type
+                        <Picker className="select" options={EVENT_TYPES.map((t) => t.label)} value={(EVENT_TYPES.find((t) => t.id === tId) || {}).label || ""}
+                          onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setMsg(null); onChangeType(idx, t.id); } }} />
                       </label>
                       <label>Date
                         <DateField className="input mono" value={e.date} onChange={(v) => tryEditDate(idx, v)} />
@@ -684,7 +688,7 @@ export default function Editor() {
                   <div className="aitem-id">{a.assetNumber}</div>
                   <div className="aitem-sub">{a.aircraftType} · {a.nacelle}</div>
                 </div>
-                {a.retired ? <span className="aitem-flag retired">retired</span>
+                {a.retired ? <span className="aitem-flag retired">{(a.status || "retired").toLowerCase()}</span>
                   : AssetStore.isAdded(a.assetNumber) ? <span className="aitem-flag new">new</span>
                   : AssetStore.isEdited(a.assetNumber) ? <span className="aitem-flag">edited</span> : null}
               </div>

@@ -611,6 +611,7 @@ body.theme-light .select {
 .city-ac-item:nth-child(odd) { background: var(--row-hover); }
 .city-ac-item:hover { background: var(--row-open); }
 .city-ac-item.sel { color: var(--accent); font-weight: 600; }
+.city-ac-more { padding: 6px 10px; font-size: 11px; color: var(--faint); font-style: italic; }
 /* slimmer scrollbar inside the dropdown lists */
 .city-ac-list::-webkit-scrollbar { width: 5px; }
 .city-ac-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }

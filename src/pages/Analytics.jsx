@@ -307,7 +307,12 @@ export default function Analytics() {
           <NavLink to="/analytics">Analytics</NavLink>
           <NavLink to="/editor">Editor</NavLink>
         </nav>
-        <button className="theme-btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"} mode</button>
+        <div className="header-right">
+          {!selectedAsset && (types.size > 0 || owns.size > 0) && (
+            <button className="theme-btn" onClick={() => { setTypes(new Set()); setOwns(new Set()); }}>Clear filters</button>
+          )}
+          <button className="theme-btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"} mode</button>
+        </div>
       </header>
 
       <div className="filterbar">
@@ -367,9 +372,6 @@ export default function Analytics() {
               ))}
             </div>
           </div>
-        )}
-        {!selectedAsset && (types.size || owns.size) > 0 && (
-          <button className="fb-clear" onClick={() => { setTypes(new Set()); setOwns(new Set()); }}>Clear</button>
         )}
       </div>
 
@@ -444,7 +446,7 @@ export default function Analytics() {
                   <tr key={a.assetNumber} className={"arow" + (selectedAsset === a.assetNumber ? " arow-sel" : "") + (a.ref && a.ref.retired ? " arow-retired" : "")}
                     onClick={() => setSelectedAsset(selectedAsset === a.assetNumber ? null : a.assetNumber)}
                     title={a.ref && a.ref.retired ? "Retired — no longer in the active register; still counted in historical figures" : (selectedAsset === a.assetNumber ? "Click to clear filter" : "Click to filter to this asset")}>
-                    <td className="mono strong">{a.assetNumber}{a.ref && a.ref.retired ? <span className="retired-tag">retired</span> : null}</td>
+                    <td className="mono strong">{a.assetNumber}{a.ref && a.ref.retired ? <span className="retired-tag">{(a.status || "retired").toLowerCase()}</span> : null}</td>
                     <td><span className="ttag" style={{ color: TYPE_COLOR[a.aircraftType], borderColor: TYPE_COLOR[a.aircraftType] + "55", background: TYPE_COLOR[a.aircraftType] + "14" }}>{a.aircraftType}</span></td>
                     <td>{a.nacelle}</td>
                     <td><span className="otag" style={{ color: OWN_COLOR[a.ownership] }}>● {a.ownership}</span></td>
