@@ -646,6 +646,8 @@ body.theme-light .select {
 /* alternating rows — first row lighter, then dark, then light…; hover is stronger still */
 .city-ac-item:nth-child(odd) { background: var(--row-hover); }
 .city-ac-item:hover { background: var(--row-open); }
+/* keyboard-highlighted row (↑/↓) — Tab or Enter selects it */
+.city-ac-item.active { background: var(--row-open); box-shadow: inset 2px 0 0 var(--accent); }
 .city-ac-item.sel { color: var(--accent); font-weight: 600; }
 .city-ac-more { padding: 6px 10px; font-size: 11px; color: var(--faint); font-style: italic; }
 .add-loc-link { background: none; border: none; padding: 3px 0 0; margin: 0; color: var(--accent); font-size: 11px; font-family: inherit; cursor: pointer; align-self: flex-start; }

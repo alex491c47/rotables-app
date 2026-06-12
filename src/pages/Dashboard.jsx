@@ -20,7 +20,8 @@ const GLOBE_THEMES = {
   },
   light: {
     glow: "rgba(37,99,235,0.10)", sphereHi: "#e6eefa", sphereLo: "#b6cce6",
-    dot: "30,64,124", dotBack: "90,120,170", cityDim: "70,95,140",
+    // land dots in dark green to read like the earth's continents on the light globe
+    dot: "21,94,52", dotBack: "96,138,108", cityDim: "70,95,140",
     arcCustomer: "14,116,200", arcReturn: "77,124,15", arcMove: "100,116,139",
     markerLease: "14,116,200", markerWip: "180,120,0", markerReady: "13,148,90",
     labelBg: "rgba(255,255,255,0.9)", labelText: "#0b1b30",

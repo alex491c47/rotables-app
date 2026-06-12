@@ -7,6 +7,22 @@ import { effectiveFinance } from '../lib/analyticsModel';
 import UserMenu from '../components/UserMenu';
 import TopNav from '../components/TopNav';
 
+/* sessionStorage-backed state — survives navigating to another page and back
+   (and a reload), so a half-finished asset/location pop-up or unsaved edits
+   aren't lost when you pop over to another page to look something up. The keys
+   are cleared explicitly on save / create / cancel. */
+const SS = (k) => `ste-editor:${k}`;
+function loadSS(k, fallback) {
+  try { const s = sessionStorage.getItem(SS(k)); return s != null ? JSON.parse(s) : fallback; }
+  catch { return fallback; }
+}
+function clearSS(...keys) { keys.forEach((k) => { try { sessionStorage.removeItem(SS(k)); } catch (e) {} }); }
+function usePersistent(k, initial) {
+  const [v, setV] = useState(() => loadSS(k, typeof initial === "function" ? initial() : initial));
+  useEffect(() => { try { sessionStorage.setItem(SS(k), JSON.stringify(v)); } catch (e) {} }, [k, v]);
+  return [v, setV];
+}
+
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
   "WIP": { c: "var(--wip)" }, "Ready to ship": { c: "var(--ready)" }, "Out on lease": { c: "var(--lease)" },
@@ -56,36 +72,66 @@ function Field({ label, hint, children, span, req }) {
     <label>{label}{req && <span className="req"> *</span>}</label>{children}{hint && <span className="field-hint">{hint}</span>}</div>;
 }
 
+/* Rank options for a typed query: whole-string prefix matches first, then
+   matches where any word starts with the query. Anything that doesn't start
+   with the query is dropped — so typing "STO" surfaces Stockholm and removes
+   Boston entirely, and typing "york" still finds "New York". */
+function rankMatches(options, q) {
+  const ql = q.toLowerCase();
+  if (!ql) return options;
+  const starts = [], wordStarts = [];
+  for (const o of options) {
+    const ol = o.toLowerCase();
+    if (ol.startsWith(ql)) starts.push(o);
+    else if (ol.split(/[\s\-/.,]+/).some((w) => w.startsWith(ql))) wordStarts.push(o);
+  }
+  return [...starts, ...wordStarts];
+}
+
 /* themed suggestion input — a text field with a dropdown that matches the app.
    showAll: list opens on focus with every option (short lists like engine types).
-   Otherwise the list only opens once typing has narrowed the options to ≤7
-   matches (long lists like the 3,000+ airports). Free text is always allowed. */
+   Otherwise the list opens once typing begins, capped to `limit` for long lists
+   (the 3,000+ airports). Free text is always allowed. The list stays open even
+   when the value exactly matches an option, so you can confirm it; ↑/↓ move the
+   highlight and Tab or Enter selects the highlighted row. */
 function SuggestInput({ value, onChange, options, showAll, limit, className, placeholder }) {
   const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-  const q = (value || "").trim().toLowerCase();
-  const matches = q ? options.filter((c) => c.toLowerCase().includes(q)) : (showAll ? options : []);
-  const exact = matches.length === 1 && matches[0].toLowerCase() === q;
-  // long lists (e.g. cities) open from the first letter typed, capped to `limit`;
-  // short lists (showAll) open on focus with everything
+  const q = (value || "").trim();
+  const matches = q ? rankMatches(options, q) : (showAll ? options : []);
   const shown = limit ? matches.slice(0, limit) : matches;
-  const show = open && shown.length > 0 && !exact && (showAll || q.length > 0);
+  const show = open && shown.length > 0 && (showAll || q.length > 0);
+  // keep the highlight on the best (first) match as the list narrows while typing
+  useEffect(() => { setActive(0); }, [value]);
+  const ai = Math.min(active, shown.length - 1);
+  const pick = (c) => { onChange(c); setOpen(false); };
+  const onKey = (e) => {
+    if (!show) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive((a) => Math.min(a + 1, shown.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
+    else if (e.key === "Enter" || e.key === "Tab") {
+      if (shown[ai]) { e.preventDefault(); pick(shown[ai]); }
+    } else if (e.key === "Escape") { setOpen(false); }
+  };
   return (
     <div className="city-ac" ref={ref}>
       <input className={className || "input"} value={value || ""} placeholder={placeholder}
         autoComplete="off"
         onFocus={() => setOpen(true)}
+        onKeyDown={onKey}
         onChange={(e) => { setOpen(true); onChange(e.target.value); }} />
       {show && (
         <ul className="city-ac-list">
-          {shown.map((c) => (
-            <li key={c} className="city-ac-item"
-              onMouseDown={(e) => { e.preventDefault(); onChange(c); setOpen(false); }}>{c}</li>
+          {shown.map((c, i) => (
+            <li key={c} className={"city-ac-item" + (i === ai ? " active" : "")}
+              onMouseEnter={() => setActive(i)}
+              onMouseDown={(e) => { e.preventDefault(); pick(c); }}>{c}</li>
           ))}
           {limit && matches.length > shown.length && <li className="city-ac-more">+{matches.length - shown.length} more — keep typing…</li>}
         </ul>
@@ -219,7 +265,7 @@ function EventLogger({ asset, onAppend }) {
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = useState(makeBlank);
   const [errs, setErrs] = useState({});
-  const [showLoc, setShowLoc] = useState(false);
+  const [showLoc, setShowLoc] = usePersistent("showLoc", false);
   useEffect(() => { setF(makeBlank()); setErrs({}); }, [asset.assetNumber]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
@@ -232,6 +278,11 @@ function EventLogger({ asset, onAppend }) {
       if (FEE_FIELDS.includes(k)) { if (v === "" || Number(v) <= 0) miss[k] = 1; }
       else if (!v || !String(v).trim()) miss[k] = 1;
     });
+    // a typed location must be one the system knows, or the database rejects the
+    // event (the city is a foreign key). Pick it from the list or add it first.
+    if (has("to") && String(f.to || "").trim() && !AssetStore.cityList().includes(f.to.trim())) {
+      miss.to = 1; miss._city = 1;
+    }
     setErrs(miss);
     if (Object.keys(miss).length) return;
 
@@ -281,13 +332,13 @@ function EventLogger({ asset, onAppend }) {
       {(isLease || def.contractType === "Exchange") && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
       <div className="row-actions" style={{ marginTop: 14 }}>
         <span className="dim" style={{ fontSize: 12, alignSelf: "center" }}>New status → <b style={{ color: STATUS_META[def.status].c }}>{def.status}</b></span>
-        {Object.keys(errs).length > 0 && <span className="form-err" style={{ marginLeft: 14 }}>Fill the required fields.</span>}
+        {Object.keys(errs).length > 0 && <span className="form-err" style={{ marginLeft: 14 }}>{errs._city ? "City not recognised — pick it from the list or use “+ Add a new location”." : "Fill the required fields."}</span>}
         <div className="spacer"></div>
         <button className="btn" onClick={() => { setF(makeBlank()); setErrs({}); }}>Clear</button>
         <button className="btn btn-primary" onClick={submit}>+ Append event</button>
       </div>
-      {showLoc && <NewLocationModal onClose={() => setShowLoc(false)}
-        onCreate={async (loc) => { await AssetStore.addCity(loc); set("to", loc.name); setShowLoc(false); }} />}
+      {showLoc && <NewLocationModal onClose={() => { setShowLoc(false); clearSS("newLoc"); }}
+        onCreate={async (loc) => { await AssetStore.addCity(loc); set("to", loc.name); setShowLoc(false); clearSS("newLoc"); }} />}
     </div>
   );
 }
@@ -498,7 +549,7 @@ function RawFields({ asset, onChange }) {
 }
 
 function NewLocationModal({ onClose, onCreate }) {
-  const [a, setA] = useState({ name: "", country: "", lat: "", lon: "", type: "customer" });
+  const [a, setA] = usePersistent("newLoc", { name: "", country: "", lat: "", lon: "", type: "customer" });
   const [errs, setErrs] = useState({});
   const [busy, setBusy] = useState(false);
   const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
@@ -540,12 +591,12 @@ function NewLocationModal({ onClose, onCreate }) {
 }
 
 function NewAssetModal({ onClose, onCreate }) {
-  const [a, setA] = useState({
+  const [a, setA] = usePersistent("newAsset", () => ({
     assetNumber: "", aircraftType: "", nacelle: "",
     initialPartNumber: "", ownership: "", clp: "", acquisitionValue: "", dailyRate: "",
     depMethod: "Straight-line", depLife: "25", depResidual: "0",
     description: "", inDate: today(), hub: "", status: "",
-  });
+  }));
   const [errs, setErrs] = useState({});
   const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
   const isSTL = a.ownership === "Short-term lease";
@@ -649,13 +700,13 @@ export default function Editor() {
   const dataVersion = useAssets();   // load from Supabase + re-render on changes
   const [dark, setDark] = useState(getDark);
   const [q, setQ] = useState("");
-  const [selId, setSelId] = useState(null);
-  const [draft, setDraft] = useState(null);
-  const [dirty, setDirty] = useState(false);
+  const [selId, setSelId] = usePersistent("selId", null);
+  const [draft, setDraft] = usePersistent("draft", null);
+  const [dirty, setDirty] = usePersistent("dirty", false);
   const [toast, setToast] = useState(null);
-  const [showNew, setShowNew] = useState(false);
+  const [showNew, setShowNew] = usePersistent("showNew", false);
   const [tick, setTick] = useState(0);
-  const [showArchived, setShowArchived] = useState(false);
+  const [showArchived, setShowArchived] = usePersistent("archived", false);
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
@@ -716,7 +767,14 @@ export default function Editor() {
 
   const [busy, setBusy] = useState(false);
   const save = async () => {
-    if (busy) return; setBusy(true);
+    if (busy) return;
+    // catch any location (incl. inline-edited ones) the database won't recognise,
+    // so we show a clear message instead of a raw foreign-key error
+    const known = AssetStore.cityList();
+    const badCity = (draft.history || [])
+      .flatMap((h) => [h.to, h.from]).filter(Boolean).find((c) => !known.includes(c));
+    if (badCity) { flash(`"${badCity}" isn't a known location — pick it from the list or add it as a new location.`); return; }
+    setBusy(true);
     try { await AssetStore.save(draft); setDirty(false); selectAsset(draft.assetNumber); flash("Saved — changes flow to Register & Analytics"); }
     catch (err) { flash("Save failed: " + (err.message || "could not reach the database")); }
     finally { setBusy(false); }
@@ -733,7 +791,7 @@ export default function Editor() {
   };
   const createAsset = async (a) => {
     if (busy) return; setBusy(true);
-    try { await AssetStore.save(a); setShowNew(false); selectAsset(a.assetNumber); flash("Asset created"); }
+    try { await AssetStore.save(a); setShowNew(false); clearSS("newAsset"); selectAsset(a.assetNumber); flash("Asset created"); }
     catch (err) { flash("Create failed: " + (err.message || "could not reach the database")); }
     finally { setBusy(false); }
   };
@@ -820,7 +878,7 @@ export default function Editor() {
         </main>
       </div>
 
-      {showNew && <NewAssetModal onClose={() => setShowNew(false)} onCreate={createAsset} />}
+      {showNew && <NewAssetModal onClose={() => { setShowNew(false); clearSS("newAsset"); }} onCreate={createAsset} />}
       {toast && <div className="toast">{toast}</div>}
     </div>
   );
