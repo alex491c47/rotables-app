@@ -80,6 +80,7 @@ function recompute(a) {
 
 /* ---------------- in-memory cache + subscription ---------------- */
 let currentAssets = [];
+let customerNames = [];
 let version = 0;
 let status = "idle";        // idle | loading | ready | error
 let loadError = null;
@@ -170,6 +171,8 @@ async function loadAssets() {
     eventRows.forEach((e) => { (byAsset[e.asset_id] = byAsset[e.asset_id] || []).push(e); });
     Object.values(byAsset).forEach((l) => l.sort((x, y) => (x.event_date < y.event_date ? -1 : x.event_date > y.event_date ? 1 : 0)));
     currentAssets = (assetRows || []).map((a) => rowToAsset(a, byAsset[a.id]));
+    const { data: custs } = await supabase.from("customers").select("name").order("name");
+    customerNames = (custs || []).map((c) => c.name);
     status = "ready";
   } catch (err) {
     loadError = err; status = "error";
@@ -195,6 +198,7 @@ export const AssetStore = {
   list: () => currentAssets.filter((a) => !a.retired),     // active — Register / Editor / globe
   listAll: () => currentAssets,                            // everything incl. retired — Analytics
   listArchived: () => currentAssets.filter((a) => a.retired), // retired — Editor historical view
+  customerList: () => customerNames,                       // customers known to the database
   get: (id) => currentAssets.find((a) => a.assetNumber === id),
   status: () => status,
   error: () => loadError,
@@ -212,6 +216,13 @@ export const AssetStore = {
     if (rows.length) {
       const { error: eIns } = await supabase.from("asset_events").insert(rows);
       if (eIns) throw eIns;
+    }
+    // any customer typed on an event that isn't in the list yet gets added,
+    // so it shows up in the dropdown for everyone next time
+    const newCustomers = [...new Set((asset.history || []).map((e) => e.customer).filter(Boolean))]
+      .filter((n) => !customerNames.includes(n));
+    if (newCustomers.length) {
+      try { await supabase.from("customers").upsert(newCustomers.map((name) => ({ name })), { onConflict: "name" }); } catch (e) {}
     }
     await logAction(existed ? "edited" : "created", asset.assetNumber,
       asset.description || `${asset.aircraftType || ""} ${asset.nacelle || ""}`.trim());

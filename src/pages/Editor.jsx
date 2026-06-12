@@ -17,6 +17,9 @@ const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#6474
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
 const STATUSES = ["WIP", "Ready to ship", "Out on lease"];
 const CUSTOMERS = COMMON_CUSTOMERS;
+// dropdown options = customers known to the database (which were seeded from the
+// defaults) merged with the built-in list, so newly-added customers appear too
+const customerOptions = () => Array.from(new Set([...AssetStore.customerList(), ...COMMON_CUSTOMERS])).sort();
 const CITY_NAMES = Object.keys(CITIES).sort();
 const HUBS = CITY_NAMES.filter((c) => CITIES[c].type === "hub");
 const today = () => new Date().toISOString().slice(0, 10);
@@ -263,7 +266,7 @@ function EventLogger({ asset, onAppend }) {
           <CityInput className={cls("to")} value={f.to} onChange={(v) => set("to", v)} placeholder={`Type ${def.cat === "out" ? "destination city" : "location"}…`} />
         </Field>}
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
-          <SuggestInput className={cls("customer")} options={CUSTOMERS} showAll value={f.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" /></Field>}
+          <SuggestInput className={cls("customer")} options={customerOptions()} showAll value={f.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" /></Field>}
         {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><MoneyInput className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(v) => set("dailyFee", v)} /></Field>}
         {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
@@ -386,7 +389,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                       {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
                         onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
                       {fhas("customer") && <label className="tl-city">Customer
-                        <SuggestInput className="input tl-wide" options={CUSTOMERS} showAll value={e.customer || ""}
+                        <SuggestInput className="input tl-wide" options={customerOptions()} showAll value={e.customer || ""}
                           onChange={(v) => onEditEvent(idx, { customer: v || null })} placeholder="Customer…" /></label>}
                       {fhas("pn") && <label>P/N received <input className="input mono" defaultValue={e.pn || ""}
                         onBlur={(ev2) => onEditEvent(idx, { pn: ev2.target.value || asset.partNumber })} /></label>}
