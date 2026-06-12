@@ -183,7 +183,15 @@ export function buildAN(rawAssets) {
                                                        else if (e.event === "Long-term lease — start") removals["Long-term lease"]++;
                                             }
                                             if (e.revenue) {
-                                                       if (isOut && !isEx && e.leaseDays) {
+                                                       if (isOut && !isEx && e.leaseDays && e.monthlyRevenue != null) {
+                                                                    // Long-term lease: recognise the monthly fee per CALENDAR month
+                                                                    // (full month = the fee; partial start/end month pro-rated by days).
+                                                                    spreadDays(e.date, e.leaseDays).forEach((s) => {
+                                                                                   const k = ymKey(s.y, s.m);
+                                                                                   mRev[k] = (mRev[k] || 0) + e.monthlyRevenue * (s.days / dim(s.y, s.m));
+                                                                    });
+                                                       } else if (isOut && !isEx && e.leaseDays) {
+                                                                    // Short-term lease (daily fee): recognise by day.
                                                                     const per = e.revenue / e.leaseDays;
                                                                     spreadDays(e.date, e.leaseDays).forEach((s) => {
                                                                                    const k = ymKey(s.y, s.m); mRev[k] = (mRev[k] || 0) + per * s.days;

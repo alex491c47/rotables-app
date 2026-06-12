@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
 import { AssetStore, useAssets } from '../data/assetStore';
-import { downloadXlsx } from '../lib/exportCsv';
+import { downloadXlsx, downloadXlsxSheets } from '../lib/exportCsv';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
@@ -249,6 +249,43 @@ export default function Analytics() {
     downloadXlsx(`analytics-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.xlsx`, header, data, "Analytics");
   };
 
+  // Whole-database export: every asset × every month, as three sheets
+  // (Utilisation %, Revenue, Depreciation). First columns identify the asset.
+  const exportAllMonthly = () => {
+    const list = AN.assets;
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const td = new Date(AN.asOfMs({ year: null }));
+    let minY = td.getUTCFullYear(), minM = td.getUTCMonth();
+    list.forEach((a) => {
+      const p = (a.inService || "").split("-").map(Number);
+      if (p[0] && (p[0] < minY || (p[0] === minY && p[1] - 1 < minM))) { minY = p[0]; minM = p[1] - 1; }
+    });
+    const months = [];
+    let y = minY, m = minM, guard = 0;
+    while ((y < td.getUTCFullYear() || (y === td.getUTCFullYear() && m <= td.getUTCMonth())) && guard++ < 1200) {
+      months.push({ y, m }); m += 1; if (m > 11) { m = 0; y += 1; }
+    }
+    const header = ["Asset #", "A/C+Engine", "Description", ...months.map((mm) => `${MON[mm.m]}-${mm.y}`)];
+    const util = [], rev = [], dep = [];
+    list.forEach((a) => {
+      const base = [a.assetNumber, a.aircraftType, (a.ref && a.ref.description) || ""];
+      const u = [...base], r = [...base], d = [...base];
+      months.forEach((mm) => {
+        const period = { year: mm.y, month: mm.m };
+        u.push(Number((AN.utilFrac(a, period) * 100).toFixed(1)));
+        r.push(Math.round(AN.revInPeriod(a, period)));
+        const monthEnd = Date.UTC(mm.y, mm.m + 1, 0), prevEnd = Date.UTC(mm.y, mm.m, 0);
+        d.push(Math.round(Math.max(0, a.depAt(monthEnd).accumDep - a.depAt(prevEnd).accumDep)));
+      });
+      util.push(u); rev.push(r); dep.push(d);
+    });
+    downloadXlsxSheets("analytics-all-months.xlsx", [
+      { name: "Utilisation %", header, rows: util },
+      { name: "Revenue (USD)", header, rows: rev },
+      { name: "Depreciation (USD)", header, rows: dep },
+    ]);
+  };
+
   const agg = useMemo(() => {
     let revenue = 0, leaseIn = 0, nbv = 0, acq = 0, accumDep = 0, clp = 0, count = 0;
     const byType = {}; const byOwn = {}; const removals = { "Long-term lease": 0, "Short-term lease": 0, "Exchange": 0 };
@@ -353,6 +390,7 @@ export default function Analytics() {
           {!selectedAsset && (types.size > 0 || owns.size > 0) && (
             <button className="theme-btn" onClick={() => { setTypes(new Set()); setOwns(new Set()); }}>Clear filters</button>
           )}
+          <button className="theme-btn" onClick={exportAllMonthly} title="Export every asset × every month — utilisation, revenue & depreciation (3 sheets)"><DownloadIcon />All months</button>
           <button className="theme-btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"} mode</button>
           <UserMenu />
         </div>

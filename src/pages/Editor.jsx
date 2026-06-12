@@ -630,11 +630,12 @@ export default function Editor() {
 
   const updateDraft = (next) => { setDraft(next); setDirty(true); };
 
-  // Edits only update the working draft — derived values (current location, status,
-  // revenue, card header) are recomputed by AssetStore.save when you click Save.
+  // Appending recomputes immediately: the history re-sorts by date (so an event
+  // dated earlier than the last one slots into place) and the current location
+  // updates, so a second event chains from where the first one left the asset.
   const appendEvent = (e) => {
-    const next = { ...draft, history: [...draft.history, e] };
-    setDraft(next); setDirty(true);
+    const next = AssetStore.recompute({ ...draft, history: [...draft.history, e] });
+    setDraft({ ...next }); setDirty(true);
   };
   const editEvent = (idx, patch) => {
     const hist = draft.history.map((h, i) => (i === idx ? { ...h, ...patch } : h));

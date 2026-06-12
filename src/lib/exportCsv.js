@@ -9,6 +9,16 @@ export function downloadXlsx(filename, header, rows, sheetName) {
   XLSX.writeFile(wb, filename);
 }
 
+// Build a multi-sheet workbook. sheets = [{ name, header, rows }].
+export function downloadXlsxSheets(filename, sheets) {
+  const wb = XLSX.utils.book_new();
+  sheets.forEach((s) => {
+    const ws = XLSX.utils.aoa_to_sheet([s.header, ...s.rows]);
+    XLSX.utils.book_append_sheet(wb, ws, s.name.slice(0, 31));
+  });
+  XLSX.writeFile(wb, filename);
+}
+
 // Build a CSV file and trigger a download. Used for the Register export and the
 // per-asset monthly breakdown. The leading BOM makes Excel open UTF-8 correctly.
 function esc(v) {
