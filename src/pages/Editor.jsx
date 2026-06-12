@@ -68,39 +68,34 @@ const EVENT_TYPES = [
   // Exchange core comes back to us — recertification fee applies; no customer is
   // tied to the returned core.
   { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "notes"], req: ["to", "pn"] },
-  { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
+  { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
   // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
   { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["notes"], req: [] },
   { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Sold", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
   { id: "scrap", label: "End of use — scrapped for parts", evt: "Scrapped for parts", status: "Retired", cat: "end", fields: ["notes"], req: [] },
-  { id: "destroyed", label: "End of use — destroyed (fire / write-off)", evt: "Destroyed", status: "Destroyed", cat: "end", fields: ["customer", "notes"], req: [] },
+  { id: "destroyed", label: "End of use — write-off (damage / loss)", evt: "Write-off", status: "Destroyed", cat: "end", fields: ["notes"], req: [] },
 ];
 const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee", "salePrice"];
 
-// Which event types make sense from the asset's CURRENT state, so the dropdown
-// only offers realistic next steps (you can't scrap or relocate a unit that's
-// out at a customer — it has to come back to us first; you can't recertify a
-// unit that isn't out; etc.). End-of-use events that need the unit in hand are
-// only offered when it's with us; "destroyed" (an accident) can happen anywhere.
-const FLOW_BY_STATUS = {
-  "WIP":           ["pool", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
-  "Ready to ship": ["wip", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
-};
-const FLOW_OUT_BY_ENGAGEMENT = {
-  "Short-term lease": ["recert", "pool", "short2exch", "return", "sold", "destroyed"],
-  "Long-term lease":  ["rerate", "ltlprog", "ltlend", "ltlendshop", "return", "sold", "destroyed"],
-  "Exchange":         ["exchin", "return", "sold", "destroyed"],
-};
-function allowedEventIds(asset) {
-  if (asset.status === "Out on lease") {
-    return FLOW_OUT_BY_ENGAGEMENT[asset.engagementType] || ["recert", "pool", "return", "sold", "destroyed"];
-  }
-  // active in-house states are gated; anything else (e.g. archived) isn't trapped
-  return FLOW_BY_STATUS[asset.status] || EVENT_TYPES.map((t) => t.id);
-}
-// full list, alphabetical — for correcting a past event's type (any type allowed)
+// All event types are selectable (sorted alphabetically so they're easy to find).
+// We don't hard-gate by state — the realistic flow is left to the operator, so
+// e.g. a long-term lease can be resumed to the customer straight from the shop.
 const EVENT_TYPES_SORTED = [...EVENT_TYPES].sort((a, b) => a.label.localeCompare(b.label));
+
+// The terms of the lease currently in effect, read from the most recent long-term
+// lease event in the history (start / rate change / program induction). Lets the
+// program-induction event carry customer, fee, contract and customer-location back
+// over even when the unit is sitting in our shop (status WIP) mid-program.
+function currentLeaseTerms(hist) {
+  for (let i = (hist || []).length - 1; i >= 0; i--) {
+    const e = hist[i];
+    if (e.contractType === "Long-term lease") {
+      return { customer: e.customer || null, monthlyRevenue: e.monthlyRevenue != null ? e.monthlyRevenue : null, contractYears: e.contractYears || null, to: e.to || null };
+    }
+  }
+  return { customer: null, monthlyRevenue: null, contractYears: null, to: null };
+}
 
 const NOW_MS = AssetCalc.TODAY_MS;
 const dMs = (d) => Date.parse(d + "T00:00:00Z");
@@ -306,12 +301,8 @@ function Picker({ value, onChange, options, placeholder, className }) {
 
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = usePersistent("evtType", "pool");
-  // only offer the next steps that make sense from the asset's current state,
-  // listed alphabetically so they're easy to find
-  const availTypes = useMemo(() =>
-    EVENT_TYPES.filter((t) => allowedEventIds(asset).includes(t.id)).sort((a, b) => a.label.localeCompare(b.label)),
-    [asset.status, asset.engagementType]);
-  const def = availTypes.find((t) => t.id === typeId) || availTypes[0] || EVENT_TYPES[0];
+  const availTypes = EVENT_TYPES_SORTED;   // all events, alphabetical
+  const def = EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES_SORTED[0];
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
@@ -324,9 +315,6 @@ function EventLogger({ asset, onAppend }) {
       setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
     }
   }, [asset.assetNumber]);
-  // if the selected type is no longer valid for this asset's state, fall back to
-  // the first available next step
-  useEffect(() => { if (availTypes.length && !availTypes.some((t) => t.id === typeId)) setTypeId(availTypes[0].id); }, [availTypes, typeId]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
   const isLease = def.cat === "out" && def.contractType !== "Exchange";
@@ -357,18 +345,22 @@ function EventLogger({ asset, onAppend }) {
     if (has("exchangeFee")) e.exchangeFee = Number(f.exchangeFee) || 0;
     if (has("recertFee") && f.recertFee !== "") e.recertFee = Number(f.recertFee) || 0;
     if (has("salePrice") && f.salePrice !== "") e.salePrice = Number(f.salePrice) || 0;
-    // the LTL program induction keeps the same customer + monthly fee as the
-    // running lease — carried over here rather than re-entered
+    // the LTL program induction sends the new P/N back to the customer on the same
+    // lease — customer, fee and contract carry over from the running lease (read
+    // from history so it works even mid-program while the unit is in our shop)
     if (def.id === "ltlprog") {
-      e.customer = asset.customer || null;
-      e.monthlyRevenue = asset.monthlyRevenue != null ? asset.monthlyRevenue : 0;
+      const t = currentLeaseTerms(asset.history);
+      e.customer = t.customer;
+      e.monthlyRevenue = t.monthlyRevenue != null ? t.monthlyRevenue : 0;
+      e.contractYears = t.contractYears;
     }
     // a rate change keeps the lease running (same customer, place, contract) — only
     // the monthly fee changes, applied from this date forward
     if (def.id === "rerate") {
-      e.customer = asset.customer || null;
-      e.to = asset.location || null;
-      e.contractYears = asset.contractYears || null;
+      const t = currentLeaseTerms(asset.history);
+      e.customer = t.customer;
+      e.to = asset.location || t.to || null;
+      e.contractYears = t.contractYears;
     }
     onAppend(e);
     setF(makeBlank());
@@ -385,7 +377,7 @@ function EventLogger({ asset, onAppend }) {
           <Picker className="select" options={availTypes.map((t) => t.label)} value={def.label}
             onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({});
               if (t.id === "short2exch" && asset.customer) set("customer", asset.customer);
-              if (t.id === "ltlprog") set("to", asset.location || "");   // customer + monthly fee carry over automatically
+              if (t.id === "ltlprog") set("to", (currentLeaseTerms(asset.history).to) || asset.location || "");   // customer + fee carry over; default back to the customer's city
               if (t.id === "rerate") set("monthlyRevenue", asset.monthlyRevenue != null ? String(asset.monthlyRevenue) : "");   // pre-fill current rate to edit from
             } }} />
         </Field>
