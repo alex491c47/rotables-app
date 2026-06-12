@@ -47,6 +47,9 @@ const EVENT_TYPES = [
   { id: "pool", label: "Back in Pool (Ready to ship)", evt: "Back in Pool", status: "Ready to ship", cat: "shop", fields: ["to", "notes"], req: ["to"] },
   { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
   { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
+  // Mid-lease escalation (inflation / renegotiation): the monthly fee changes from
+  // this date forward. Customer, location and contract length carry over.
+  { id: "rerate", label: "Lease rate change (escalation)", evt: "Lease rate change", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["monthlyRevenue", "notes"], req: ["monthlyRevenue"] },
   // Long-term lease program swap: a new P/N is inducted/repaired and goes back to
   // the customer; the asset stays Out on lease and the monthly fee keeps flowing.
   // Customer + monthly fee are carried over automatically (not re-entered); only
@@ -86,7 +89,7 @@ const FLOW_BY_STATUS = {
 };
 const FLOW_OUT_BY_ENGAGEMENT = {
   "Short-term lease": ["recert", "pool", "short2exch", "return", "sold", "destroyed"],
-  "Long-term lease":  ["ltlprog", "ltlend", "ltlendshop", "return", "sold", "destroyed"],
+  "Long-term lease":  ["rerate", "ltlprog", "ltlend", "ltlendshop", "return", "sold", "destroyed"],
   "Exchange":         ["exchin", "return", "sold", "destroyed"],
 };
 function allowedEventIds(asset) {
@@ -360,6 +363,13 @@ function EventLogger({ asset, onAppend }) {
       e.customer = asset.customer || null;
       e.monthlyRevenue = asset.monthlyRevenue != null ? asset.monthlyRevenue : 0;
     }
+    // a rate change keeps the lease running (same customer, place, contract) — only
+    // the monthly fee changes, applied from this date forward
+    if (def.id === "rerate") {
+      e.customer = asset.customer || null;
+      e.to = asset.location || null;
+      e.contractYears = asset.contractYears || null;
+    }
     onAppend(e);
     setF(makeBlank());
     setErrs({});
@@ -376,6 +386,7 @@ function EventLogger({ asset, onAppend }) {
             onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({});
               if (t.id === "short2exch" && asset.customer) set("customer", asset.customer);
               if (t.id === "ltlprog") set("to", asset.location || "");   // customer + monthly fee carry over automatically
+              if (t.id === "rerate") set("monthlyRevenue", asset.monthlyRevenue != null ? String(asset.monthlyRevenue) : "");   // pre-fill current rate to edit from
             } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
@@ -387,7 +398,7 @@ function EventLogger({ asset, onAppend }) {
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
           <SuggestInput className={cls("customer")} options={customerOptions()} showAll value={f.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" /></Field>}
         {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><MoneyInput className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(v) => set("dailyFee", v)} /></Field>}
-        {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
+        {has("monthlyRevenue") && <Field label={def.id === "rerate" ? "New monthly revenue (USD/month)" : "Monthly revenue (USD/month)"} req hint={def.id === "rerate" ? "the escalated rate — applied from this date onward" : "recognised per month on lease"}><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
         {has("exchangeFee") && <Field label="Exchange fee (USD)" req={def.req.includes("exchangeFee")} hint={def.id.startsWith("ltlend") ? "optional — fee for taking over the other unit" : "recognised in the exchange month"}><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req={def.req.includes("pn")} hint={def.id.startsWith("ltlend") ? "leave blank to keep your unit; enter a P/N to take over the overhauled one" : undefined}><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder={def.id.startsWith("ltlend") ? "optional new P/N" : "new P/N"} /></Field>}
