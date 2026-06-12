@@ -248,16 +248,17 @@ function GlobePanel({ globeRef, selected, stats, allAssets }) {
   useEffect(() => {
     if (!globeRef.current) return;
     const names = new Set();
-    Object.keys(CITIES).forEach((n) => { if (CITIES[n].type === "hub") names.add(n); });
+    const CITY = AssetStore.cityMap();
+    Object.keys(CITY).forEach((n) => { if (CITY[n].type === "hub") names.add(n); });
     (allAssets || []).forEach((a) => {
-      if (a.location && CITIES[a.location]) names.add(a.location);
+      if (a.location && AssetStore.cityMap()[a.location]) names.add(a.location);
       (a.history || []).forEach((h) => {
-        if (h.from && CITIES[h.from]) names.add(h.from);
-        if (h.to && CITIES[h.to]) names.add(h.to);
+        if (h.from && AssetStore.cityMap()[h.from]) names.add(h.from);
+        if (h.to && AssetStore.cityMap()[h.to]) names.add(h.to);
       });
     });
     const cities = [...names].map((name) => ({
-      lat: CITIES[name].lat, lon: CITIES[name].lon, label: name, kind: CITIES[name].type,
+      lat: AssetStore.cityMap()[name].lat, lon: AssetStore.cityMap()[name].lon, label: name, kind: AssetStore.cityMap()[name].type,
     }));
     globeRef.current.setAllCityMarkers(cities);
   }, [allAssets]);
@@ -559,14 +560,14 @@ export default function Dashboard() {
     selected.history.forEach((h) => { if (h.from && !seen.has(h.from)) seen.set(h.from, h.status); });
     const names = [...seen.keys()];
     const markers = names.map((name) => ({
-      lat: CITIES[name].lat, lon: CITIES[name].lon, label: name,
+      lat: AssetStore.cityMap()[name].lat, lon: AssetStore.cityMap()[name].lon, label: name,
       status: name === selected.location ? selected.status : seen.get(name),
       current: name === selected.location,
     }));
     markers.sort((a, b) => (a.current ? 1 : 0) - (b.current ? 1 : 0));
-    const legs = selected.history.filter((h) => h.from && h.to && CITIES[h.from] && CITIES[h.to]).map((h) => ({
-      from: { lat: CITIES[h.from].lat, lon: CITIES[h.from].lon },
-      to: { lat: CITIES[h.to].lat, lon: CITIES[h.to].lon },
+    const legs = selected.history.filter((h) => h.from && h.to && AssetStore.cityMap()[h.from] && AssetStore.cityMap()[h.to]).map((h) => ({
+      from: { lat: AssetStore.cityMap()[h.from].lat, lon: AssetStore.cityMap()[h.from].lon },
+      to: { lat: AssetStore.cityMap()[h.to].lat, lon: AssetStore.cityMap()[h.to].lon },
       reason: h.cat,
     }));
     g.focus({ markers, legs });
@@ -578,7 +579,7 @@ export default function Dashboard() {
     if (selected) { g.setAggregates([]); return; }
     const byCity = new Map();
     filtered.forEach((a) => {
-      if (!CITIES[a.location]) return;
+      if (!AssetStore.cityMap()[a.location]) return;
       if (!byCity.has(a.location)) byCity.set(a.location, { count: 0, statuses: {} });
       const e = byCity.get(a.location);
       e.count++;
@@ -588,7 +589,7 @@ export default function Dashboard() {
       const dominant = Object.keys(e.statuses)
         .sort((x, y) => STATUS_RANK[x] - STATUS_RANK[y])[0];
       return {
-        lat: CITIES[name].lat, lon: CITIES[name].lon, label: name,
+        lat: AssetStore.cityMap()[name].lat, lon: AssetStore.cityMap()[name].lon, label: name,
         count: e.count, status: dominant, breakdown: e.statuses,
       };
     });
@@ -598,12 +599,12 @@ export default function Dashboard() {
   useEffect(() => {
     const g = globeRef.current;
     if (!g || selected) return;
-    const locs = [...filters.location].filter((n) => CITIES[n]);
+    const locs = [...filters.location].filter((n) => AssetStore.cityMap()[n]);
     if (!locs.length) return;
     const D = Math.PI / 180;
     let x = 0, y = 0, z = 0;
     locs.forEach((n) => {
-      const la = CITIES[n].lat * D, lo = CITIES[n].lon * D;
+      const la = AssetStore.cityMap()[n].lat * D, lo = AssetStore.cityMap()[n].lon * D;
       x += Math.cos(la) * Math.sin(lo);
       y += Math.sin(la);
       z += Math.cos(la) * Math.cos(lo);
