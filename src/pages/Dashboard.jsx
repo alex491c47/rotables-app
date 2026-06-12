@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AssetStore, useAssets } from '../data/assetStore';
+import { AssetStore, AssetCalc, useAssets } from '../data/assetStore';
+import { downloadCsv } from '../lib/exportCsv';
 import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
@@ -37,6 +38,18 @@ const ENGAGEMENT_META = {
 };
 const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b" };
 const STATUS_RANK = { "Ready to ship": 0, "WIP": 1, "Out on lease": 2 };
+
+// Long-term leases ending within this many days are flagged "ending soon".
+const LEASE_SOON_DAYS = 60;
+// Days until an active long-term lease is due to end (null if not applicable).
+function leaseEndDays(a) {
+  if (a.status !== "Out on lease" || a.engagementType !== "Long-term lease" || !a.contractYears) return null;
+  let start = null;
+  for (let i = a.history.length - 1; i >= 0; i--) { if (a.history[i].cat === "out") { start = a.history[i].date; break; } }
+  if (!start) return null;
+  const endMs = Date.parse(start + "T00:00:00Z") + a.contractYears * 365.25 * 86400000;
+  return Math.round((endMs - AssetCalc.TODAY_MS) / 86400000);
+}
 
 function matchField(a, q) {
   if (a.assetNumber.toLowerCase().includes(q)) return { field: "asset", value: a.assetNumber };
@@ -413,7 +426,12 @@ function AssetTable({ assets, expandedId, onToggle }) {
                     ? <span className="intake-tag" title="Core received via exchange — newly inducted">Exchange intake</span>
                     : a.previousStatus ? <StatusBadge status={a.previousStatus} muted /> : <span className="dim">—</span>}</td>
                   <td><StatusBadge status={a.status} /></td>
-                  <td><EngagementTag type={a.engagementType} compact /></td>
+                  <td>
+                    <EngagementTag type={a.engagementType} compact />
+                    {(() => { const d = leaseEndDays(a); return d != null && d <= LEASE_SOON_DAYS
+                      ? <span className="lease-soon" title={d < 0 ? "Long-term lease past its end date — log a return/renewal" : `Long-term lease ends in ${d} days`}>{d < 0 ? "overdue" : `${d}d left`}</span>
+                      : null; })()}
+                  </td>
                   <td className="num">{fmtDays(a.daysOnLease)}</td>
                   <td className="num">{fmtMoney(a.totalRevenue)}</td>
                   <td className="dim">{a.lastUpdated}</td>
@@ -609,6 +627,18 @@ export default function Dashboard() {
 
   const onToggle = useCallback((id) => setExpandedId((cur) => (cur === id ? null : id)), []);
 
+  const endingSoonCount = filtered.filter((a) => { const d = leaseEndDays(a); return d != null && d <= LEASE_SOON_DAYS; }).length;
+  const exportRegister = () => {
+    const header = ["Asset #", "Aircraft", "Component", "Current P/N", "Location", "Previous status",
+      "Status", "Lease type", "Days leased", "Revenue (USD)", "Lease ends in (days)", "Last updated"];
+    const rows = filtered.map((a) => {
+      const d = leaseEndDays(a);
+      return [a.assetNumber, a.aircraftType, a.nacelle, a.partNumber, a.location, a.previousStatus || "",
+        a.status, a.engagementType || "", a.daysOnLease, Math.round(a.totalRevenue), d == null ? "" : d, a.lastUpdated];
+    });
+    downloadCsv("asset-register.csv", header, rows);
+  };
+
   const selectAsset = useCallback((id) => {
     const a = all.find((x) => x.assetNumber === id);
     setFilters((f) => ({ ...f, search: a ? a.assetNumber : f.search }));
@@ -650,7 +680,8 @@ export default function Dashboard() {
           <div className="table-section">
             <div className="table-section-head">
               <span className="ts-title">Asset Register</span>
-              <span className="ts-sub">{filtered.length} assets · click a row for movement, part-number & revenue history</span>
+              <span className="ts-sub">{filtered.length} assets{endingSoonCount > 0 ? ` · ${endingSoonCount} lease${endingSoonCount === 1 ? "" : "s"} ending within ${LEASE_SOON_DAYS} days` : ""} · click a row for history</span>
+              <button className="btn btn-sm reg-export" onClick={exportRegister} title="Download the current table as a spreadsheet (CSV)">⬇ Export</button>
             </div>
             <AssetTable assets={filtered} expandedId={expandedId} onToggle={onToggle} />
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
 import { AssetStore, useAssets } from '../data/assetStore';
+import { downloadCsv } from '../lib/exportCsv';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
@@ -206,6 +207,35 @@ export default function Analytics() {
   const pickAsset = (id) => { setSelectedAsset(id); };
   const focus = selectedAsset ? AN.assets.find((a) => a.assetNumber === selectedAsset) : null;
 
+  // Per-asset month-by-month export: utilisation, days on lease, revenue, depreciation & NBV.
+  const exportAssetMonthly = (a) => {
+    if (!a) return;
+    const [sy, sm] = (a.inService || "2026-01-01").split("-").map(Number);
+    const endMs = (a.ref && a.ref.retired && a.ref.retiredDate)
+      ? Date.parse(a.ref.retiredDate + "T00:00:00Z") : AN.asOfMs({ year: null });
+    const end = new Date(endMs);
+    const endY = end.getUTCFullYear(), endM = end.getUTCMonth();
+    const header = ["Month", "Utilisation %", "Days on lease", "Revenue (USD)", "Depreciation (USD)", "Net book value (USD)"];
+    const rows = [];
+    let y = sy, m = sm - 1;
+    let guard = 0;
+    while ((y < endY || (y === endY && m <= endM)) && guard++ < 600) {
+      const period = { year: y, month: m };
+      const monthEnd = Date.UTC(y, m + 1, 0), prevEnd = Date.UTC(y, m, 0);
+      const dep = Math.max(0, a.depAt(monthEnd).accumDep - a.depAt(prevEnd).accumDep);
+      rows.push([
+        `${y}-${String(m + 1).padStart(2, "0")}`,
+        (AN.utilFrac(a, period) * 100).toFixed(1),
+        AN.utilDaysInPeriod(a, period),
+        Math.round(AN.revInPeriod(a, period)),
+        Math.round(dep),
+        Math.round(a.depAt(monthEnd).nbv),
+      ]);
+      m += 1; if (m > 11) { m = 0; y += 1; }
+    }
+    downloadCsv(`asset-${a.assetNumber}-monthly.csv`, header, rows);
+  };
+
   const agg = useMemo(() => {
     let revenue = 0, leaseIn = 0, nbv = 0, acq = 0, accumDep = 0, clp = 0, count = 0;
     const byType = {}; const byOwn = {}; const removals = { "Long-term lease": 0, "Short-term lease": 0, "Exchange": 0 };
@@ -329,6 +359,8 @@ export default function Analytics() {
                 <span style={{ color: OWN_COLOR[focus.ownership] }}>{focus.ownership}</span>
                 <span className="fai-sep">·</span>
                 <span className="fai-loc">{focus.ref.location}</span>
+                <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={() => exportAssetMonthly(focus)}
+                  title="Download this asset's month-by-month utilisation, revenue & depreciation (CSV)">⬇ Monthly CSV</button>
               </div>
             )}
           </div>
