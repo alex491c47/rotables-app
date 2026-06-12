@@ -247,16 +247,33 @@ export function buildAN(rawAssets) {
             if (period.month != null) return asset.mUtil[ymKey(period.year, period.month)] || 0;
             let s = 0; for (let m = 0; m < 12; m++) s += asset.mUtil[ymKey(period.year, m)] || 0; return s;
      }
+     // The time an asset actually HAD to be utilised within a period: from when it
+     // came into service (day-level) up to the earliest of today or its return/
+     // retirement date, intersected with the period. So a unit inaugurated mid-year
+     // is only measured from that day, a returned unit only up to its return date,
+     // and the current month only counts the days elapsed so far.
+     function periodEndExclusiveMs(period) {
+            if (period.year == null) return Infinity;
+            return period.month != null ? Date.UTC(period.year, period.month + 1, 1) : Date.UTC(period.year + 1, 0, 1);
+     }
+     function retiredMs(asset) {
+            const ref = asset.ref;
+            if (ref && ref.retired && ref.retiredDate) return new Date(ref.retiredDate + "T00:00:00Z").getTime();
+            return Infinity;
+     }
+     function availDays(asset, period) {
+            const inMs = inServiceMs(asset);
+            const startMs = Math.max(periodStartMs(period), inMs);
+            const endMs = Math.min(periodEndExclusiveMs(period), retiredMs(asset), TODAY.getTime());
+            return Math.max(0, (endMs - startMs) / DAY);
+     }
      function utilFrac(asset, period) {
             const days = utilDaysInPeriod(asset, period);
             // Short-term leases are only on our books while actually out on lease
             // (leased in from a supplier, shipped straight to the customer, returned),
             // so their utilisation is ~100% whenever they are active.
             if (asset.ownership === "Short-term lease") return days > 0 ? 1 : 0;
-            let denom;
-            if (period.year == null) denom = asset.ageDays;
-            else if (period.month != null) denom = dim(period.year, period.month);
-            else denom = 365;
+            const denom = availDays(asset, period);
             return Math.min(1, denom > 0 ? days / denom : 0);
      }
      function leaseInCost(asset, period) {
@@ -285,7 +302,15 @@ export function buildAN(rawAssets) {
             const out = []; for (let m = 0; m < 12; m++) out.push(asset.mRev[ymKey(year, m)] || 0); return out;
      }
      function monthlyUtilFrac(asset, year) {
-            const out = []; for (let m = 0; m < 12; m++) out.push(Math.min(1, (asset.mUtil[ymKey(year, m)] || 0) / dim(year, m))); return out;
+            const out = [];
+            for (let m = 0; m < 12; m++) {
+                     const days = asset.mUtil[ymKey(year, m)] || 0;
+                     if (asset.ownership === "Short-term lease") { out.push(days > 0 ? 1 : 0); continue; }
+                     const avail = availDays(asset, { year, month: m });
+                     // future months (no available time yet) read 0 here; the projection overlay handles them
+                     out.push(avail > 0 ? Math.min(1, days / avail) : 0);
+            }
+            return out;
      }
      function asOfMs(period) {
             if (period.year == null) return TODAY.getTime();
@@ -322,7 +347,7 @@ export function buildAN(rawAssets) {
 
   return {
          assets, years, AN_CLP, LEASE_IN_PCT,
-         revInPeriod, utilDaysInPeriod, utilFrac, leaseInCost, monthlyRev, monthlyUtilFrac,
+         revInPeriod, utilDaysInPeriod, utilFrac, availDays, leaseInCost, monthlyRev, monthlyUtilFrac,
          asOfMs, inServiceBy, activeInPeriod, nbvAsOf, removalsInPeriod, dim, ymKey,
          weightedUtil(list, period) {
                   let wsum = 0, num = 0;
