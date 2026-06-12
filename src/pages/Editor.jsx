@@ -6,6 +6,7 @@ import { getDark, saveDark } from '../lib/theme';
 import { effectiveFinance } from '../lib/analyticsModel';
 import UserMenu from '../components/UserMenu';
 import TopNav from '../components/TopNav';
+import { BusyOverlay } from '../components/Spinner';
 
 /* sessionStorage-backed state — survives navigating to another page and back
    (and a reload), so a half-finished asset/location pop-up or unsaved edits
@@ -933,6 +934,7 @@ export default function Editor() {
       </div>
 
       {showNew && <NewAssetModal onClose={() => { setShowNew(false); clearSS("newAsset"); }} onCreate={createAsset} />}
+      <BusyOverlay show={busy || (assetsStatus() === "loading" && AssetStore.listAll().length === 0)} label={busy ? "Saving…" : "Loading assets…"} />
       {toast && <div className="toast">{toast}</div>}
     </div>
   );

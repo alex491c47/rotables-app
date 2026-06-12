@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
-import { AssetStore, AssetCalc, useAssets } from '../data/assetStore';
+import { AssetStore, AssetCalc, useAssets, assetsStatus } from '../data/assetStore';
+import { BusyOverlay } from '../components/Spinner';
 import { downloadXlsx } from '../lib/exportCsv';
 import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
@@ -674,6 +675,7 @@ export default function Dashboard() {
 
   return (
     <div className="app">
+      <BusyOverlay show={assetsStatus() === "loading" && AssetStore.listAll().length === 0} label="Loading assets…" />
       <Header stats={stats} />
       <div className="body-row">
         <FilterPane filters={filters} setFilters={setFilters} resultCount={filtered.length} total={all.length}

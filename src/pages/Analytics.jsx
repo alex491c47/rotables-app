@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
-import { AssetStore, useAssets } from '../data/assetStore';
+import { AssetStore, useAssets, assetsStatus } from '../data/assetStore';
+import { BusyOverlay } from '../components/Spinner';
 import { downloadXlsx, downloadXlsxSheets } from '../lib/exportCsv';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
@@ -385,6 +386,7 @@ export default function Analytics() {
 
   return (
     <div className="page">
+      <BusyOverlay show={assetsStatus() === "loading" && AssetStore.listAll().length === 0} label="Loading assets…" />
       <header className="app-header">
         <NavLink to="/" end className="brand" title="Go to Asset Register">
           <div className="brand-mark"><BrandMark /></div>

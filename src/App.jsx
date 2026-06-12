@@ -7,6 +7,7 @@ import Admin from './pages/Admin'
 import Login from './pages/Login'
 import ResetPassword from './pages/ResetPassword'
 import { useAuth } from './lib/auth'
+import { SpinnerLogo } from './components/Spinner'
 
 const BrandMark = () => <img src="/logo.png" alt="ST Engineering" className="brand-mark-img" />
 
@@ -14,7 +15,7 @@ function Splash({ text }) {
   return (
     <div className="auth-wrap">
       <div className="auth-card" style={{ alignItems: 'center', textAlign: 'center' }}>
-        <div className="brand-mark" style={{ width: 44, height: 44 }}><BrandMark /></div>
+        <SpinnerLogo size={44} />
         <div className="dim" style={{ marginTop: 14 }}>{text || 'Loading…'}</div>
       </div>
     </div>
