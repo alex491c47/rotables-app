@@ -760,12 +760,28 @@ export default function Editor() {
   const [draft, setDraft] = usePersistent("draft", null);
   const [dirty, setDirty] = usePersistent("dirty", false);
   const [toast, setToast] = useState(null);
+  const [othersEditing, setOthersEditing] = useState([]);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [showNew, setShowNew] = usePersistent("showNew", false);
   const [tick, setTick] = useState(0);
   const [showArchived, setShowArchived] = usePersistent("archived", false);
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
+
+  // Editing presence: mark this asset as open (heartbeat every 45s), check who
+  // else has it open, and clear our mark when we leave or switch assets.
+  useEffect(() => {
+    if (!selId) { setOthersEditing([]); return; }
+    let cancelled = false;
+    const ping = async () => {
+      await AssetStore.markEditing(selId);
+      const others = await AssetStore.whoElseEditing(selId);
+      if (!cancelled) setOthersEditing(others);
+    };
+    ping();
+    const hb = setInterval(ping, 45000);
+    return () => { cancelled = true; clearInterval(hb); setOthersEditing([]); AssetStore.clearEditing(selId); };
+  }, [selId]);
 
   const list = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -924,6 +940,8 @@ export default function Editor() {
                   <button className="btn btn-danger btn-sm" onClick={() => setConfirmRemove(true)}>Remove asset</button>
                 </div>
               </div>
+
+              {othersEditing.length > 0 && <div className="banner banner-warn"><span>⚠</span> <b>{othersEditing.join(", ")}</b> {othersEditing.length > 1 ? "also have" : "also has"} this asset open right now — your changes may overwrite each other. Coordinate before saving.</div>}
 
               {dirty && <div className="banner banner-warn"><span>●</span> Unsaved changes — click <b>Save</b> to persist them and update the Register & Analytics views.</div>}
 

@@ -268,6 +268,35 @@ export const AssetStore = {
   error: () => loadError,
   reload: loadAssets,
 
+  // ---- editing presence: who currently has an asset open in the Editor ----
+  async markEditing(assetNumber) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      const u = data && data.user; if (!u) return;
+      await supabase.from("editing_sessions").upsert(
+        { asset_number: assetNumber, user_id: u.id, user_email: u.email, updated_at: new Date().toISOString() },
+        { onConflict: "asset_number,user_id" });
+    } catch (e) { /* presence is best-effort */ }
+  },
+  async clearEditing(assetNumber) {
+    try {
+      const { data } = await supabase.auth.getUser();
+      const u = data && data.user; if (!u) return;
+      await supabase.from("editing_sessions").delete().eq("asset_number", assetNumber).eq("user_id", u.id);
+    } catch (e) {}
+  },
+  async whoElseEditing(assetNumber) {
+    try {
+      const { data: ures } = await supabase.auth.getUser();
+      const me = ures && ures.user ? ures.user.id : null;
+      const { data } = await supabase.from("editing_sessions").select("user_email,user_id,updated_at").eq("asset_number", assetNumber);
+      const cutoff = Date.now() - 120000;   // active = heartbeat within the last 2 min
+      return [...new Set((data || [])
+        .filter((r) => r.user_id !== me && Date.parse(r.updated_at) >= cutoff)
+        .map((r) => r.user_email || "another user"))];
+    } catch (e) { return []; }
+  },
+
   async save(asset) {
     const prev = currentAssets.find((x) => x.assetNumber === asset.assetNumber);
     const existed = !!prev;
