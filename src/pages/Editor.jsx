@@ -46,7 +46,10 @@ const EVENT_TYPES = [
   { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
   { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
   { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
-  { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "customer", "pn", "recertFee", "notes"], req: ["to", "pn"] },
+  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"] },
+  // Exchange core comes back to us — a removal we repair, so the income is repair
+  // revenue (stored in recertFee) and no customer is tied to the returned core.
+  { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "notes"], req: ["to", "pn"] },
   { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
   // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
@@ -317,7 +320,7 @@ function EventLogger({ asset, onAppend }) {
       <div className="grid3">
         <Field label="Event type" span>
           <Picker className="select" options={EVENT_TYPES.map((t) => t.label)} value={def.label}
-            onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({}); } }} />
+            onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({}); if (t.id === "short2exch" && asset.customer) set("customer", asset.customer); } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
@@ -332,7 +335,7 @@ function EventLogger({ asset, onAppend }) {
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
         {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder="new P/N" /></Field>}
-        {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
+        {has("recertFee") && <Field label={def.id === "exchin" ? "Repair revenue (USD)" : "Recertification fee (USD)"} hint={def.id === "exchin" ? "income from repairing the returned core" : "recognised as revenue (optional)"}><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
         {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
@@ -414,7 +417,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                 <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{e.event}
                   {e.contractType && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
                 <div className="tl-meta">
-                  {(e.from || e.to) && <span>{e.from || "facility"} → <span className="mono">{e.to || asset.location}</span></span>}
+                  {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || asset.location}</span></span>}
                   {e.customer && <span>{e.customer}</span>}
                   {e.pn && <span className="mono">{e.pn}</span>}
                   {e.leaseDays ? <span>{e.leaseDays} d</span> : null}
@@ -444,7 +447,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                         onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
                       {fhas("exchangeFee") && <label>Exchange fee (USD) <MoneyInput className="input mono" value={e.exchangeFee || 0}
                         onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
-                      {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
+                      {fhas("recertFee") && <label>{eDef.id === "exchin" ? "Repair revenue (USD)" : "Recertification fee (USD)"} <MoneyInput className="input mono" value={e.recertFee || 0}
                         onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
                       {fhas("salePrice") && <label>Sale price (USD) <MoneyInput className="input mono" value={e.salePrice || 0}
                         onChange={(v) => onEditEvent(idx, { salePrice: Number(v) || 0 })} /></label>}
@@ -603,11 +606,13 @@ function NewAssetModal({ onClose, onCreate }) {
     initialPartNumber: "", ownership: "", clp: "", acquisitionValue: "", dailyRate: "",
     depMethod: "Straight-line", depLife: "25", depResidual: "0",
     description: "", inDate: today(), hub: "", status: "",
+    source: "", customer: "", leaseOutFee: "",
   }));
   const [errs, setErrs] = useState({});
   const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
   const isSTL = a.ownership === "Short-term lease";
   const capitalised = a.ownership === "Owned" || a.ownership === "Long-term lease";
+  const isOut = a.status === "Out on lease";   // created already out with a customer
 
   const create = () => {
     const e = {};
@@ -620,22 +625,32 @@ function NewAssetModal({ onClose, onCreate }) {
     if (a.clp === "" || Number(a.clp) <= 0) e.clp = 1;
     if (!a.inDate) e.inDate = 1;
     if (!a.hub) e.hub = 1;
+    else if (!AssetStore.cityList().includes(a.hub)) { e.hub = 1; e._city = 1; }   // must be a known city (FK)
     if (capitalised && (a.acquisitionValue === "" || Number(a.acquisitionValue) <= 0)) e.acquisitionValue = 1;
     if (capitalised && (a.depLife === "" || Number(a.depLife) <= 0)) e.depLife = 1;
     if (isSTL && (a.dailyRate === "" || Number(a.dailyRate) <= 0)) e.dailyRate = 1;
+    if (isOut && !a.customer.trim()) e.customer = 1;
+    if (isOut && (a.leaseOutFee === "" || Number(a.leaseOutFee) <= 0)) e.leaseOutFee = 1;
     if (AssetStore.get(a.assetNumber.trim())) e.assetNumber = 1;
     setErrs(e);
     if (Object.keys(e).length) return;
 
-    const ev = [{ date: a.inDate, event: a.status === "WIP" ? "Induction" : "Back in Pool", cat: "shop", status: a.status,
-      from: null, to: a.hub, customer: null, revenue: 0, leaseDays: null, contractType: null, contractYears: null,
-      pn: a.initialPartNumber, notes: "Asset added via editor." }];
+    // Created already out on lease → a short-term lease event (status Out on lease)
+    // with the customer + the daily fee we charge. Otherwise the usual shop event.
+    const ev = isOut
+      ? [{ date: a.inDate, event: "Short-term lease", cat: "out", status: "Out on lease",
+          contractType: "Short-term lease", from: null, source: a.source.trim() || null, to: a.hub,
+          customer: a.customer.trim(), dailyFee: Number(a.leaseOutFee), revenue: 0, leaseDays: null,
+          contractYears: null, pn: a.initialPartNumber, notes: "Asset added via editor — leased out." }]
+      : [{ date: a.inDate, event: a.status === "WIP" ? "Induction" : "Back in Pool", cat: "shop", status: a.status,
+          from: null, source: a.source.trim() || null, to: a.hub, customer: null, revenue: 0, leaseDays: null,
+          contractType: null, contractYears: null, pn: a.initialPartNumber, notes: "Asset added via editor." }];
     const asset = {
       assetNumber: a.assetNumber.trim(), aircraftType: a.aircraftType, nacelle: a.nacelle,
       initialPartNumber: a.initialPartNumber, partNumber: a.initialPartNumber,
       ownership: a.ownership, clp: Number(a.clp), dailyRate: isSTL ? Number(a.dailyRate) : 0,
       description: a.description || `${a.aircraftType} ${a.nacelle}`, status: a.status, location: a.hub,
-      customer: null, engagementType: null, contractYears: null, history: ev,
+      customer: isOut ? a.customer.trim() : null, engagementType: null, contractYears: null, history: ev,
     };
     if (capitalised) {
       asset.acquisitionValue = Number(a.acquisitionValue);
@@ -680,18 +695,29 @@ function NewAssetModal({ onClose, onCreate }) {
                 <Field label="Residual (%)" hint="of acquisition value"><input type="number" inputMode="numeric" className="input mono" value={a.depResidual} onChange={(e) => set("depResidual", e.target.value)} /></Field>
               </React.Fragment>
             )}
+            <Field label="Acquired from" hint="where we got it — e.g. Collins, Safran, a lessor or teardown (blank = facility)">
+              <SuggestInput className="input" options={customerOptions()} showAll value={a.source} onChange={(v) => set("source", v)} placeholder="Select or type a source…" />
+            </Field>
             <Field label="Status" req>
               <Picker className={sx("status")} options={STATUSES} value={a.status} onChange={(v) => set("status", v)} />
             </Field>
             <Field label="Induction date" req><DateField className={cx("inDate") + " mono"} value={a.inDate} onChange={(v) => set("inDate", v)} /></Field>
-            <Field label="Hub / location" req>
+            <Field label={isOut ? "Customer city" : "Hub / location"} req hint={isOut ? "where the customer is" : undefined}>
               <CityInput className={cx("hub")} value={a.hub} onChange={(v) => set("hub", v)} placeholder="Start typing a city…" />
             </Field>
+            {isOut && (
+              <Field label="Customer" req hint="who is leasing it">
+                <SuggestInput className={cx("customer")} options={customerOptions()} showAll value={a.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" />
+              </Field>
+            )}
+            {isOut && (
+              <Field label="Daily lease fee charged (USD/day)" req hint="revenue we recognise per day on lease"><MoneyInput className={cx("leaseOutFee") + " mono"} value={a.leaseOutFee} onChange={(v) => set("leaseOutFee", v)} /></Field>
+            )}
             <Field label="Description" span hint="auto if left blank"><input className="input" value={a.description} onChange={(e) => set("description", e.target.value)} /></Field>
           </div>
         </div>
         <div className="modal-foot">
-          {Object.keys(errs).length > 0 && <span className="form-err">Please fill the required fields{errs.assetNumber && AssetStore.get(a.assetNumber.trim()) ? " (asset number already exists)" : ""}.</span>}
+          {Object.keys(errs).length > 0 && <span className="form-err">{errs._city ? "Location not recognised — pick it from the list or add it as a new location first." : `Please fill the required fields${errs.assetNumber && AssetStore.get(a.assetNumber.trim()) ? " (asset number already exists)" : ""}.`}</span>}
           <button className="btn" onClick={onClose}>Cancel</button><button className="btn btn-primary" onClick={create}>Create asset</button>
         </div>
       </div>

@@ -41,6 +41,16 @@ function recompute(a) {
   const ev = (a.history || []).slice().sort((x, y) =>
     x.date < y.date ? -1 : x.date > y.date ? 1 : 0);
   a.history = ev;
+  // Chain each event's "from" to where the asset was after the previous event,
+  // so renaming/correcting a location flows through to later events' origin (and
+  // keeps every from a valid city). The first event keeps its own origin — null,
+  // or the acquisition source (Collins/Safran/etc.) which lives on e.source.
+  let loc = null;
+  ev.forEach((e, i) => {
+    if (i === 0) { loc = e.to || e.from || loc; return; }
+    e.from = loc;
+    if (e.to) loc = e.to;
+  });
   ev.forEach((e, i) => {
     if (!AssetCalc.isRated(e)) return;
     if (e.cat === "out" && e.contractType !== "Exchange") e.leaseDays = AssetCalc.leaseDays(ev, i);
@@ -99,7 +109,7 @@ function subscribeAssets(fn) { listeners.add(fn); return () => listeners.delete(
 function rowToEvent(e) {
   return {
     date: e.event_date, event: e.event_type, cat: e.category, status: e.status,
-    from: e.from_city, to: e.to_city, customer: e.customer,
+    from: e.from_city, to: e.to_city, customer: e.customer, source: e.source || null,
     contractType: e.contract_type, contractYears: e.contract_years,
     dailyFee: e.daily_fee, monthlyRevenue: e.monthly_revenue, exchangeFee: e.exchange_fee,
     recertFee: e.recert_fee, salePrice: e.sale_price, pn: e.part_number, notes: e.notes,
@@ -130,13 +140,16 @@ function assetToRow(a) {
   return row;
 }
 function eventToRow(e, assetId) {
-  return {
+  const row = {
     asset_id: assetId, event_date: e.date, event_type: e.event, category: e.cat, status: e.status,
     from_city: e.from || null, to_city: e.to || null, customer: e.customer || null,
     contract_type: e.contractType || null, contract_years: e.contractYears ?? null,
     daily_fee: e.dailyFee ?? null, monthly_revenue: e.monthlyRevenue ?? null, exchange_fee: e.exchangeFee ?? null,
     recert_fee: e.recertFee ?? null, sale_price: e.salePrice ?? null, part_number: e.pn || null, notes: e.notes || null,
   };
+  // only send `source` when set, so saves still work before the source column is added
+  if (e.source) row.source = e.source;
+  return row;
 }
 
 /* one-time population of the reference lists (cities for the globe/pickers,
