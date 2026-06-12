@@ -357,5 +357,31 @@ export function buildAN(rawAssets) {
                   if (!active.length) return 0;
                   let s = 0; active.forEach((a) => (s += utilFrac(a, period))); return s / active.length;
          },
+         // Projected utilisation for a FUTURE month: the NBV-weighted share of the
+         // fleet expected to still be on a long-term lease then, based on each live
+         // lease's start date + contract length. (We don't speculate on short-term or
+         // exchange work, so this is the contracted baseline.)
+         projectedUtilFrac(list, year, month) {
+                  const monthStartMs = Date.UTC(year, month, 1);
+                  let wsum = 0, num = 0;
+                  list.forEach((a) => {
+                           const w = nbvAsOf(a, { year, month }).nbv;
+                           if (w <= 0) return;
+                           wsum += w;
+                           const ref = a.ref;
+                           if (a.status !== "Out on lease" || a.engagementType !== "Long-term lease" || !ref) return;
+                           let startMs = null, years = 0;
+                           const hist = ref.history || [];
+                           for (let i = hist.length - 1; i >= 0; i--) {
+                                    const e = hist[i];
+                                    if (e.event === "Long-term lease — start" && e.contractType === "Long-term lease") {
+                                             startMs = new Date(e.date + "T00:00:00Z").getTime();
+                                             years = e.contractYears || 0; break;
+                                    }
+                           }
+                           if (startMs != null && years > 0 && monthStartMs <= startMs + years * 365.25 * DAY) num += w;
+                  });
+                  return wsum > 0 ? num / wsum : 0;
+         },
   };
 }

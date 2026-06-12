@@ -327,7 +327,15 @@ export default function Analytics() {
     if (year == null) {
       return AN.years.map((y) => ({ label: "'" + String(y).slice(2), value: AN.weightedUtil(assets, { year: y, month: null }) }));
     }
-    return MONTHS.map((mn, m) => ({ label: mn, value: AN.weightedUtil(assets, { year, month: m }) }));
+    // for the current (or a future) year, months past today show the PROJECTED
+    // utilisation from still-live long-term leases, drawn as a separate dashed line
+    const td = new Date(AN.asOfMs({ year: null }));
+    const curY = td.getUTCFullYear(), curM = td.getUTCMonth();
+    return MONTHS.map((mn, m) => {
+      const future = year > curY || (year === curY && m > curM);
+      if (future) return { label: mn, value: AN.projectedUtilFrac(assets, year, m), projected: true };
+      return { label: mn, value: AN.weightedUtil(assets, { year, month: m }) };
+    });
   }, [AN, assets, year]);
 
   // NBV chart uses ALL assets (unfiltered) so the chart always shows the full picture
@@ -476,7 +484,7 @@ export default function Analytics() {
           <Card title={year == null ? "Revenue by year" : "Revenue by month"} sub={periodLabel} span={2}>
             <BarChart data={revTrend} accent="var(--ready)" />
           </Card>
-          <Card title="Utilisation trend" sub="NBV-weighted" span={2}>
+          <Card title="Utilisation trend" sub={utilTrend.some((d) => d.projected) ? "NBV-weighted · dashed = projected from live long-term leases" : "NBV-weighted"} span={2}>
             <LineChart data={utilTrend} color="var(--lease)" />
           </Card>
 

@@ -106,8 +106,9 @@ export function BarChart({ data, height = 220, fmt = fmtUSD, accent, highlightId
   );
 }
 
-export function LineChart({ data, height = 220, color }) {
+export function LineChart({ data, height = 220, color, projectedColor }) {
   const c = color || "var(--lease)";
+  const pc = projectedColor || "var(--wip)";   // dashed segment for projected (future) months
   const [hover, setHover] = useState(null);
   const [ref, W] = useWidth(640);
   const tv = useTweenValues(data.map((d) => d.value));
@@ -117,8 +118,15 @@ export function LineChart({ data, height = 220, color }) {
   const v = (i) => (tv[i] != null ? tv[i] : data[i].value);
   const xAt = (i) => padL + (n === 1 ? plotW / 2 : (i / (n - 1)) * plotW);
   const yAt = (val) => padTop + plotH * (1 - val);
-  const pts = data.map((d, i) => `${xAt(i)},${yAt(v(i))}`).join(" ");
-  const area = `${padL},${padTop + plotH} ${pts} ${padL + plotW},${padTop + plotH}`;
+  // split into a solid "actual" segment and a dashed "projected" segment; the
+  // projected line starts at the last actual point so the two join up cleanly
+  const firstProj = data.findIndex((d) => d.projected);
+  const hasProj = firstProj !== -1;
+  const actualEnd = hasProj ? firstProj - 1 : n - 1;
+  const ptStr = (lo, hi) => { const a = []; for (let i = lo; i <= hi; i++) a.push(`${xAt(i)},${yAt(v(i))}`); return a.join(" "); };
+  const actualPts = actualEnd >= 0 ? ptStr(0, actualEnd) : "";
+  const projPts = hasProj ? ptStr(Math.max(0, actualEnd), n - 1) : "";
+  const area = actualEnd >= 0 ? `${padL},${padTop + plotH} ${actualPts} ${xAt(actualEnd)},${padTop + plotH}` : "";
   return (
     <div className="chart-line" ref={ref} style={{ position: "relative" }}>
       <svg viewBox={`0 0 ${W} ${height}`} width="100%" height={height}
@@ -131,15 +139,17 @@ export function LineChart({ data, height = 220, color }) {
               fontSize="9.5" fill="var(--dim)" fontFamily="'IBM Plex Sans',sans-serif">{Math.round(g * 100)}%</text>
           </g>
         ))}
-        <polygon points={area} fill={c} opacity="0.12" />
-        <polyline points={pts} fill="none" stroke={c} strokeWidth="2"
-          strokeLinejoin="round" strokeLinecap="round" />
+        {area && <polygon points={area} fill={c} opacity="0.12" />}
+        {actualPts && <polyline points={actualPts} fill="none" stroke={c} strokeWidth="2"
+          strokeLinejoin="round" strokeLinecap="round" />}
+        {projPts && <polyline points={projPts} fill="none" stroke={pc} strokeWidth="2" strokeDasharray="5 4"
+          strokeLinejoin="round" strokeLinecap="round" />}
         {data.map((d, i) => (
           <g key={i} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
             <rect x={xAt(i) - plotW / (2 * n)} y={padTop} width={plotW / n} height={plotH} fill="transparent" />
-            <circle cx={xAt(i)} cy={yAt(v(i))} r={hover === i ? 4.5 : 3} fill={c} />
+            <circle cx={xAt(i)} cy={yAt(v(i))} r={hover === i ? 4.5 : 3} fill={d.projected ? pc : c} />
             <text x={xAt(i)} y={yAt(v(i)) - 9} textAnchor="middle"
-              fontSize="10" fill="var(--text)"
+              fontSize="10" fill={d.projected ? "var(--dim)" : "var(--text)"}
               fontFamily="'IBM Plex Sans',sans-serif">{fmtPct1(v(i))}</text>
             <text x={xAt(i)} y={height - 9} textAnchor="middle" fontSize="10.5" fill="var(--dim)"
               fontFamily="'IBM Plex Sans',sans-serif">{d.label}</text>
@@ -148,7 +158,7 @@ export function LineChart({ data, height = 220, color }) {
       </svg>
       {hover != null && (
         <div className="chart-tip" style={{ left: `${xAt(hover) / W * 100}%` }}>
-          <strong>{data[hover].label}</strong><span>{fmtPct1(data[hover].value)}</span>
+          <strong>{data[hover].label}{data[hover].projected ? " · projected" : ""}</strong><span>{fmtPct1(data[hover].value)}</span>
         </div>
       )}
     </div>
