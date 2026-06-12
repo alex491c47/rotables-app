@@ -46,9 +46,11 @@ const EVENT_TYPES = [
   { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
   { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
   { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
-  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"] },
-  // Exchange core comes back to us — a removal we repair, so the income is repair
-  // revenue (stored in recertFee) and no customer is tied to the returned core.
+  // Only offered when the asset is currently out on a short-term lease — the
+  // customer converts it to an exchange: daily lease stops, exchange fee applies.
+  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Short-term lease" },
+  // Exchange core comes back to us — recertification fee applies; no customer is
+  // tied to the returned core.
   { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "notes"], req: ["to", "pn"] },
   { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
@@ -264,6 +266,9 @@ function Picker({ value, onChange, options, placeholder, className }) {
 
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = usePersistent("evtType", "pool");
+  // some events only make sense in a given state (e.g. converting a short-term
+  // lease to an exchange is only possible while the asset is on a short-term lease)
+  const availTypes = useMemo(() => EVENT_TYPES.filter((t) => !t.avail || t.avail(asset)), [asset.status, asset.engagementType]);
   const def = EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES.find((t) => t.id === "pool");
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
@@ -277,6 +282,8 @@ function EventLogger({ asset, onAppend }) {
       setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
     }
   }, [asset.assetNumber]);
+  // if the selected type is no longer valid for this asset's state, fall back
+  useEffect(() => { if (!availTypes.some((t) => t.id === typeId)) setTypeId("pool"); }, [availTypes, typeId]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
   const isLease = def.cat === "out" && def.contractType !== "Exchange";
@@ -319,7 +326,7 @@ function EventLogger({ asset, onAppend }) {
       <h3 className="section-title">Log an event <span className="hint">appends to the timeline & recalculates the asset</span></h3>
       <div className="grid3">
         <Field label="Event type" span>
-          <Picker className="select" options={EVENT_TYPES.map((t) => t.label)} value={def.label}
+          <Picker className="select" options={availTypes.map((t) => t.label)} value={def.label}
             onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({}); if (t.id === "short2exch" && asset.customer) set("customer", asset.customer); } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
@@ -335,7 +342,7 @@ function EventLogger({ asset, onAppend }) {
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
         {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder="new P/N" /></Field>}
-        {has("recertFee") && <Field label={def.id === "exchin" ? "Repair revenue (USD)" : "Recertification fee (USD)"} hint={def.id === "exchin" ? "income from repairing the returned core" : "recognised as revenue (optional)"}><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
+        {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
         {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
@@ -447,7 +454,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                         onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
                       {fhas("exchangeFee") && <label>Exchange fee (USD) <MoneyInput className="input mono" value={e.exchangeFee || 0}
                         onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
-                      {fhas("recertFee") && <label>{eDef.id === "exchin" ? "Repair revenue (USD)" : "Recertification fee (USD)"} <MoneyInput className="input mono" value={e.recertFee || 0}
+                      {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
                         onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
                       {fhas("salePrice") && <label>Sale price (USD) <MoneyInput className="input mono" value={e.salePrice || 0}
                         onChange={(v) => onEditEvent(idx, { salePrice: Number(v) || 0 })} /></label>}
