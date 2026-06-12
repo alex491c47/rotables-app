@@ -81,6 +81,13 @@ function recompute(a) {
 /* ---------------- in-memory cache + subscription ---------------- */
 let currentAssets = [];
 let customerNames = [];
+const BASE_CITY_NAMES = Object.keys(CITIES);
+let cityNamesCache = BASE_CITY_NAMES.slice().sort();   // all selectable location names
+let cityMapCache = CITIES;                             // name -> { lat, lon, country, type }
+function rebuildCities(extra) {
+  cityMapCache = { ...CITIES, ...extra };
+  cityNamesCache = Object.keys(cityMapCache).sort();
+}
 let version = 0;
 let status = "idle";        // idle | loading | ready | error
 let loadError = null;
@@ -173,6 +180,12 @@ async function loadAssets() {
     currentAssets = (assetRows || []).map((a) => rowToAsset(a, byAsset[a.id]));
     const { data: custs } = await supabase.from("customers").select("name").order("name");
     customerNames = (custs || []).map((c) => c.name);
+    try {
+      const { data: extra } = await supabase.from("cities").select("name,lat,lon,country,city_type").eq("added", true);
+      const map = {};
+      (extra || []).forEach((c) => { map[c.name] = { lat: c.lat, lon: c.lon, country: c.country, type: c.city_type }; });
+      rebuildCities(map);
+    } catch (e) { /* 'added' column may not exist yet — fine */ }
     status = "ready";
   } catch (err) {
     loadError = err; status = "error";
@@ -199,6 +212,15 @@ export const AssetStore = {
   listAll: () => currentAssets,                            // everything incl. retired — Analytics
   listArchived: () => currentAssets.filter((a) => a.retired), // retired — Editor historical view
   customerList: () => customerNames,                       // customers known to the database
+  cityList: () => cityNamesCache,                          // all selectable location names
+  cityMap: () => cityMapCache,                             // name -> { lat, lon, country, type }
+  async addCity({ name, country, lat, lon, type }) {
+    const row = { name, country: country || "", lat: Number(lat), lon: Number(lon), city_type: type || "customer", added: true };
+    const { error } = await supabase.from("cities").upsert(row, { onConflict: "name" });
+    if (error) throw error;
+    rebuildCities({ ...cityMapCache, [name]: { lat: row.lat, lon: row.lon, country: row.country, type: row.city_type } });
+    notify();
+  },
   get: (id) => currentAssets.find((a) => a.assetNumber === id),
   status: () => status,
   error: () => loadError,

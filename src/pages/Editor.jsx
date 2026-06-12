@@ -93,7 +93,7 @@ function SuggestInput({ value, onChange, options, showAll, limit, className, pla
     </div>
   );
 }
-const CityInput = (props) => <SuggestInput options={CITY_NAMES} limit={9} placeholder="Type a city…" {...props} />;
+const CityInput = (props) => <SuggestInput options={AssetStore.cityList()} limit={9} placeholder="Type a city…" {...props} />;
 
 /* themed date picker — replaces the browser's native calendar (which can't be
    styled to match). value/onChange use ISO "YYYY-MM-DD" strings. */
@@ -219,6 +219,7 @@ function EventLogger({ asset, onAppend }) {
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = useState(makeBlank);
   const [errs, setErrs] = useState({});
+  const [showLoc, setShowLoc] = useState(false);
   useEffect(() => { setF(makeBlank()); setErrs({}); }, [asset.assetNumber]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
@@ -264,6 +265,7 @@ function EventLogger({ asset, onAppend }) {
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
         {has("to") && <Field label={def.cat === "out" ? "To (customer city)" : def.cat === "move" ? "To (hub)" : "Location / hub"} req>
           <CityInput className={cls("to")} value={f.to} onChange={(v) => set("to", v)} placeholder={`Type ${def.cat === "out" ? "destination city" : "location"}…`} />
+          <button type="button" className="add-loc-link" onClick={() => setShowLoc(true)}>+ Add a new location</button>
         </Field>}
         {has("customer") && <Field label="Customer" req={def.req.includes("customer")}>
           <SuggestInput className={cls("customer")} options={customerOptions()} showAll value={f.customer} onChange={(v) => set("customer", v)} placeholder="Select or type customer…" /></Field>}
@@ -284,6 +286,8 @@ function EventLogger({ asset, onAppend }) {
         <button className="btn" onClick={() => { setF(makeBlank()); setErrs({}); }}>Clear</button>
         <button className="btn btn-primary" onClick={submit}>+ Append event</button>
       </div>
+      {showLoc && <NewLocationModal onClose={() => setShowLoc(false)}
+        onCreate={async (loc) => { await AssetStore.addCity(loc); set("to", loc.name); setShowLoc(false); }} />}
     </div>
   );
 }
@@ -488,6 +492,48 @@ function RawFields({ asset, onChange }) {
             </div>
           </React.Fragment>
         )}
+      </div>
+    </div>
+  );
+}
+
+function NewLocationModal({ onClose, onCreate }) {
+  const [a, setA] = useState({ name: "", country: "", lat: "", lon: "", type: "customer" });
+  const [errs, setErrs] = useState({});
+  const [busy, setBusy] = useState(false);
+  const set = (k, v) => setA((s) => ({ ...s, [k]: v }));
+  const create = async () => {
+    const e = {};
+    if (!a.name.trim()) e.name = 1;
+    if (a.name.trim() && AssetStore.cityMap()[a.name.trim()]) e.name = 1;   // already exists
+    if (a.lat === "" || isNaN(Number(a.lat)) || Math.abs(Number(a.lat)) > 90) e.lat = 1;
+    if (a.lon === "" || isNaN(Number(a.lon)) || Math.abs(Number(a.lon)) > 180) e.lon = 1;
+    setErrs(e);
+    if (Object.keys(e).length) return;
+    setBusy(true);
+    try { await onCreate({ name: a.name.trim(), country: a.country.trim(), lat: Number(a.lat), lon: Number(a.lon), type: a.type }); }
+    catch (err) { setErrs({ form: err.message || "Could not save the location." }); setBusy(false); }
+  };
+  const cx = (k) => "input" + (errs[k] ? " err" : "");
+  return (
+    <div className="modal-back">
+      <div className="modal" style={{ maxWidth: 460 }}>
+        <div className="modal-head"><h3>Add a new location</h3><button className="icon-btn" onClick={onClose} style={{ fontSize: 20 }}>×</button></div>
+        <div className="modal-body">
+          <p className="field-hint" style={{ marginBottom: 12 }}>Adds a location to the shared list so it can be used everywhere and shown on the map. Look up the coordinates by searching e.g. “Bratislava latitude longitude”.</p>
+          <div className="grid2">
+            <Field label="Location name" req span><input className={cx("name") + " mono"} value={a.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Bratislava" /></Field>
+            <Field label="Country"><input className="input" value={a.country} onChange={(e) => set("country", e.target.value)} placeholder="e.g. Slovakia" /></Field>
+            <Field label="Type"><Picker className="select" options={["customer", "hub"]} value={a.type} onChange={(v) => set("type", v)} /></Field>
+            <Field label="Latitude" req hint="−90 to 90"><input type="number" inputMode="decimal" className={cx("lat") + " mono"} value={a.lat} onChange={(e) => set("lat", e.target.value)} placeholder="48.15" /></Field>
+            <Field label="Longitude" req hint="−180 to 180"><input type="number" inputMode="decimal" className={cx("lon") + " mono"} value={a.lon} onChange={(e) => set("lon", e.target.value)} placeholder="17.11" /></Field>
+          </div>
+        </div>
+        <div className="modal-foot">
+          {(errs.name || errs.lat || errs.lon || errs.form) && <span className="form-err">{errs.form || "Check the fields — name must be new, latitude −90…90, longitude −180…180."}</span>}
+          <button className="btn" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" disabled={busy} onClick={create}>{busy ? "Saving…" : "Add location"}</button>
+        </div>
       </div>
     </div>
   );
