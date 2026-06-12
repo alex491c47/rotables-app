@@ -104,11 +104,12 @@ function rowToAsset(a, events) {
     partNumber: a.initial_part_number, clp: a.clp, acquisitionValue: a.acquisition_value,
     dailyRate: a.daily_rate || 0, depMethod: a.dep_method, depLife: a.dep_life_years,
     depResidual: a.dep_residual, depOverride: a.dep_override, exchangeCore: a.exchange_core,
+    depAdjustments: a.dep_adjustments || [],
     history: (events || []).map(rowToEvent),
   });
 }
 function assetToRow(a) {
-  return {
+  const row = {
     asset_number: a.assetNumber, aircraft_type: a.aircraftType, nacelle: a.nacelle,
     description: a.description || null, ownership: a.ownership || "Owned",
     initial_part_number: a.initialPartNumber || a.partNumber || "",
@@ -116,6 +117,9 @@ function assetToRow(a) {
     dep_method: a.depMethod || "Straight-line", dep_life_years: a.depLife ?? null,
     dep_residual: a.depResidual ?? 0, dep_override: a.depOverride || null, exchange_core: !!a.exchangeCore,
   };
+  // only send adjustments when present, so saves still work before the dep_adjustments column is added
+  if (a.depAdjustments && a.depAdjustments.length) row.dep_adjustments = a.depAdjustments;
+  return row;
 }
 function eventToRow(e, assetId) {
   return {

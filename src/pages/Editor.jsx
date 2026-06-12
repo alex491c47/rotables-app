@@ -421,6 +421,9 @@ function RawFields({ asset, onChange }) {
   const set = (k, v) => onChange({ ...asset, [k]: v });
   const dep = asset.depOverride || null;
   const setDep = (patch) => onChange({ ...asset, depOverride: { life: 10, residual: 0, from: today(), ...(dep || {}), ...patch } });
+  const adjustments = asset.depAdjustments || [];
+  const setAdjustments = (next) => onChange({ ...asset, depAdjustments: next });
+  const setAdj = (i, patch) => setAdjustments(adjustments.map((x, j) => (j === i ? { ...x, ...patch } : x)));
   // Short-term leases are leased IN from a lessor and shipped straight back out —
   // they sit off the balance sheet and are never depreciated, so the depreciation
   // controls are locked unless the ownership is changed to an owned/long-term type.
@@ -465,6 +468,21 @@ function RawFields({ asset, onChange }) {
               </div>
             )}
             <p className="field-hint" style={{ marginTop: 8 }}>Depreciation before the effective date is kept; the new straight-line scheme applies after it. Net book value & analytics update automatically.</p>
+
+            <div style={{ marginTop: 18 }}>
+              <h3 className="section-title" style={{ fontSize: 12.5 }}>Impairments / write-downs
+                <span className="hint">one-off depreciation in a specific month — e.g. fire or accident damage</span></h3>
+              {adjustments.map((adj, i) => (
+                <div className="adj-row" key={i}>
+                  <input type="month" className="input mono" value={adj.month || ""} onChange={(e) => setAdj(i, { month: e.target.value })} />
+                  <MoneyInput className="input mono" placeholder="amount written down (USD)" value={adj.amount} onChange={(v) => setAdj(i, { amount: v === "" ? "" : Number(v) })} />
+                  <input className="input" placeholder="reason (e.g. fire damage)" value={adj.note || ""} onChange={(e) => setAdj(i, { note: e.target.value })} />
+                  <button className="icon-btn del" title="Remove this write-down" onClick={() => setAdjustments(adjustments.filter((_, j) => j !== i))}>🗑</button>
+                </div>
+              ))}
+              <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setAdjustments([...adjustments, { month: today().slice(0, 7), amount: "", note: "" }])}>+ Add write-down</button>
+              <p className="field-hint" style={{ marginTop: 6 }}>Each row books extra depreciation in that month — net book value drops by that amount from then on. See the month-by-month figures via “Monthly Excel” on the Analytics page.</p>
+            </div>
           </React.Fragment>
         )}
       </div>

@@ -150,6 +150,24 @@ export function buildAN(rawAssets) {
                                             return { nbv: acqValue - dep, accumDep: dep };
                                    }
 
+                                   // manual per-month adjustments / write-downs (e.g. fire damage):
+                                   // extra depreciation booked at the end of the given month.
+                                   const depAdj = (a.depAdjustments || []).map((x) => {
+                                            const p = String(x.month || "").split("-").map(Number);
+                                            return { ms: (p[0] && p[1]) ? Date.UTC(p[0], p[1], 0) : 0, amount: Number(x.amount) || 0 };
+                                   }).filter((x) => x.ms);
+                                   if (depAdj.length) {
+                                            const baseDepAt = depAt;
+                                            depAt = function (asof) {
+                                                       const b = baseDepAt(asof);
+                                                       let extra = 0;
+                                                       for (const x of depAdj) if (x.ms <= asof) extra += x.amount;
+                                                       if (!extra) return b;
+                                                       const ad = b.accumDep + extra;
+                                                       return { nbv: Math.max(0, acqValue - ad), accumDep: ad };
+                                            };
+                                   }
+
                                    const now = depAt(TODAY.getTime());
          const accumDep = now.accumDep, nbv = now.nbv;
 

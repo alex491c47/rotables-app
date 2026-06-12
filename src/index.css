@@ -263,6 +263,11 @@ body.theme-light .globe-totals { background: rgba(255,255,255,0.72); }
 .ts-title { font-weight: 600; font-size: 13px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text2); }
 .ts-sub { font-size: 12px; color: var(--dim); }
 .reg-export { margin-left: auto; }
+/* impairment / write-down rows in the editor */
+.adj-row { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.adj-row .input[type=month] { width: 150px; flex: 0 0 150px; }
+.adj-row .input.mono { width: 170px; flex: 0 0 170px; }
+.adj-row .input:not(.mono) { flex: 1 1 auto; }
 /* audit-log action tags */
 .act-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; padding: 1px 6px; border-radius: 4px; }
 .act-created { color: var(--ready); background: color-mix(in srgb, var(--ready) 14%, transparent); }
