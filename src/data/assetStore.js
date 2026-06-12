@@ -111,6 +111,7 @@ function rowToEvent(e) {
   return {
     date: e.event_date, event: e.event_type, cat: e.category, status: e.status,
     from: e.from_city, to: e.to_city, customer: e.customer, source: e.source || null,
+    contractName: e.contract_name || null,
     contractType: e.contract_type, contractYears: e.contract_years,
     dailyFee: e.daily_fee, monthlyRevenue: e.monthly_revenue, exchangeFee: e.exchange_fee,
     recertFee: e.recert_fee, salePrice: e.sale_price, pn: e.part_number, notes: e.notes,
@@ -148,8 +149,9 @@ function eventToRow(e, assetId) {
     daily_fee: e.dailyFee ?? null, monthly_revenue: e.monthlyRevenue ?? null, exchange_fee: e.exchangeFee ?? null,
     recert_fee: e.recertFee ?? null, sale_price: e.salePrice ?? null, part_number: e.pn || null, notes: e.notes || null,
   };
-  // only send `source` when set, so saves still work before the source column is added
+  // only send these when set, so saves still work before the columns are added
   if (e.source) row.source = e.source;
+  if (e.contractName) row.contract_name = e.contractName;
   return row;
 }
 
@@ -254,6 +256,7 @@ export const AssetStore = {
   listAll: () => currentAssets,                            // everything incl. retired — Analytics
   listArchived: () => currentAssets.filter((a) => a.retired), // retired — Editor historical view
   customerList: () => customerNames,                       // customers known to the database
+  contractList: () => [...new Set(currentAssets.flatMap((a) => (a.history || []).map((e) => e.contractName).filter(Boolean)))].sort(),
   cityList: () => cityNamesCache,                          // all selectable location names
   cityMap: () => cityMapCache,                             // name -> { lat, lon, country, type }
   async addCity({ name, country, lat, lon, type }) {

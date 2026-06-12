@@ -44,8 +44,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 const EVENT_TYPES = [
   { id: "wip", label: "Induction / In shop (WIP)", evt: "Induction", status: "WIP", cat: "shop", fields: ["to", "notes"], req: ["to"] },
   { id: "pool", label: "Back in Pool (Ready to ship)", evt: "Back in Pool", status: "Ready to ship", cat: "shop", fields: ["to", "notes"], req: ["to"] },
-  { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
-  { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
+  { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "contractName", "notes"], req: ["to", "customer", "dailyFee"] },
+  { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "contractName", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
   // Mid-lease escalation (inflation / renegotiation): the monthly fee changes from
   // this date forward. Customer, location and contract length carry over.
   { id: "rerate", label: "Lease rate change (escalation)", evt: "Lease rate change", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["monthlyRevenue", "notes"], req: ["monthlyRevenue"] },
@@ -60,14 +60,14 @@ const EVENT_TYPES = [
   // other unit (enter its P/N; blank = keep our unit) and may charge an exchange fee.
   { id: "ltlend", label: "End of long-term lease program — ready to ship", evt: "LTL program — ended (to pool)", status: "Ready to ship", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"] },
   { id: "ltlendshop", label: "End of long-term lease program — into shop (overhaul)", evt: "LTL program — ended (to shop)", status: "WIP", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"] },
-  { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
+  { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "contractName", "notes"], req: ["to", "customer", "exchangeFee"] },
   // The customer converts an active short-term lease to an exchange: daily lease
   // stops, exchange fee applies.
-  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"] },
+  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "contractName", "notes"], req: ["exchangeFee"] },
   // Exchange core comes back to us — recertification fee applies; no customer is
   // tied to the returned core.
-  { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "notes"], req: ["to", "pn"] },
-  { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "recertFee", "notes"], req: ["to"] },
+  { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "contractName", "notes"], req: ["to", "pn"] },
+  { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "recertFee", "contractName", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
   // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
   { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["notes"], req: [] },
@@ -123,10 +123,10 @@ function currentLeaseTerms(hist) {
   for (let i = (hist || []).length - 1; i >= 0; i--) {
     const e = hist[i];
     if (e.contractType === "Long-term lease") {
-      return { customer: e.customer || null, monthlyRevenue: e.monthlyRevenue != null ? e.monthlyRevenue : null, contractYears: e.contractYears || null, to: e.to || null };
+      return { customer: e.customer || null, monthlyRevenue: e.monthlyRevenue != null ? e.monthlyRevenue : null, contractYears: e.contractYears || null, to: e.to || null, contractName: e.contractName || null };
     }
   }
-  return { customer: null, monthlyRevenue: null, contractYears: null, to: null };
+  return { customer: null, monthlyRevenue: null, contractYears: null, to: null, contractName: null };
 }
 
 const NOW_MS = AssetCalc.TODAY_MS;
@@ -338,7 +338,7 @@ function EventLogger({ asset, onAppend }) {
     EVENT_TYPES.filter((t) => allowedEventIds(asset).includes(t.id)).sort((a, b) => a.label.localeCompare(b.label)),
     [asset.status, asset.engagementType, asset.history]);
   const def = availTypes.find((t) => t.id === typeId) || availTypes[0] || EVENT_TYPES[0];
-  const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
+  const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", contractName: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
   const [showLoc, setShowLoc] = usePersistent("showLoc", false);
@@ -383,14 +383,16 @@ function EventLogger({ asset, onAppend }) {
     if (has("exchangeFee")) e.exchangeFee = Number(f.exchangeFee) || 0;
     if (has("recertFee") && f.recertFee !== "") e.recertFee = Number(f.recertFee) || 0;
     if (has("salePrice") && f.salePrice !== "") e.salePrice = Number(f.salePrice) || 0;
+    if (has("contractName")) e.contractName = (f.contractName || "").trim() || null;
     // the LTL program induction sends the new P/N back to the customer on the same
-    // lease — customer, fee and contract carry over from the running lease (read
-    // from history so it works even mid-program while the unit is in our shop)
+    // lease — customer, fee, contract length & name carry over from the running
+    // lease (read from history so it works even mid-program while the unit is with us)
     if (def.id === "ltlprog") {
       const t = currentLeaseTerms(asset.history);
       e.customer = t.customer;
       e.monthlyRevenue = t.monthlyRevenue != null ? t.monthlyRevenue : 0;
       e.contractYears = t.contractYears;
+      e.contractName = t.contractName;
     }
     // a rate change keeps the lease running (same customer, place, contract) — only
     // the monthly fee changes, applied from this date forward
@@ -399,6 +401,11 @@ function EventLogger({ asset, onAppend }) {
       e.customer = t.customer;
       e.to = asset.location || t.to || null;
       e.contractYears = t.contractYears;
+      e.contractName = t.contractName;
+    }
+    // program-end events stay under the same contract name
+    if (def.id === "ltlend" || def.id === "ltlendshop") {
+      e.contractName = currentLeaseTerms(asset.history).contractName;
     }
     onAppend(e);
     setF(makeBlank());
@@ -433,6 +440,8 @@ function EventLogger({ asset, onAppend }) {
         {has("pn") && <Field label="Part number received" req={def.req.includes("pn")} hint={def.id.startsWith("ltlend") ? "leave blank to keep your unit; enter a P/N to take over the overhauled one" : undefined}><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder={def.id.startsWith("ltlend") ? "optional new P/N" : "new P/N"} /></Field>}
         {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
         {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
+        {has("contractName") && <Field label="Contract name" hint="the support contract this falls under — blank if outside any contract">
+          <SuggestInput className="input" options={AssetStore.contractList()} showAll value={f.contractName} onChange={(v) => set("contractName", v)} placeholder="Select or type a contract…" /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
       {(isLease || def.contractType === "Exchange") && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
@@ -515,6 +524,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                 <div className="tl-meta">
                   {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
                   {e.customer && <span>{e.customer}</span>}
+                  {e.contractName && <span style={{ color: "var(--accent)" }} title="Contract">❝{e.contractName}❞</span>}
                   {e.pn && <span className="mono">{e.pn}</span>}
                   {e.leaseDays ? <span>{e.leaseDays} d</span> : null}
                   {e.revenue ? <span style={{ color: "var(--ready)" }}>{fmtMoney(e.revenue)}</span> : null}
@@ -554,6 +564,9 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                           onChange={(v) => onEditEvent(idx, { customer: v || null })} placeholder="Customer…" /></label>}
                       {fhas("pn") && <label>P/N received <input className="input mono" defaultValue={e.pn || ""}
                         onBlur={(ev2) => onEditEvent(idx, { pn: ev2.target.value || asset.partNumber })} /></label>}
+                      {fhas("contractName") && <label className="tl-city">Contract name
+                        <SuggestInput className="input tl-wide" options={AssetStore.contractList()} showAll value={e.contractName || ""}
+                          onChange={(v) => onEditEvent(idx, { contractName: v || null })} placeholder="Contract…" /></label>}
                       {msg && msg.idx === idx && <div className={"tl-inline-msg " + (msg.ok ? "ok" : "err")}>{msg.text}</div>}
                     </div>
                   );
