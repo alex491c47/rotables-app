@@ -8,6 +8,7 @@ import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
 import TopNav from '../components/TopNav';
+import DownloadIcon from '../components/DownloadIcon';
 
 const GLOBE_THEMES = {
   dark: {
@@ -681,7 +682,7 @@ export default function Dashboard() {
             <div className="table-section-head">
               <span className="ts-title">Asset Register</span>
               <span className="ts-sub">{filtered.length} assets{endingSoonCount > 0 ? ` · ${endingSoonCount} lease${endingSoonCount === 1 ? "" : "s"} ending within ${LEASE_SOON_DAYS} days` : ""} · click a row for history</span>
-              <button className="btn btn-sm reg-export" onClick={exportRegister} title="Download the current table as an Excel spreadsheet">⬇ Export to Excel</button>
+              <button className="btn btn-sm reg-export" onClick={exportRegister} title="Download the current table as an Excel spreadsheet"><DownloadIcon />Export to Excel</button>
             </div>
             <AssetTable assets={filtered} expandedId={expandedId} onToggle={onToggle} />
           </div>

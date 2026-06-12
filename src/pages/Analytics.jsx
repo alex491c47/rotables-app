@@ -7,6 +7,7 @@ import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '.
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
 import TopNav from '../components/TopNav';
+import DownloadIcon from '../components/DownloadIcon';
 
 const TYPE_PALETTE = ["#38bdf8", "#818cf8", "#2dd4bf", "#f472b6", "#fbbf24", "#a3e635", "#fb923c", "#22d3ee", "#c084fc"];
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
@@ -236,6 +237,18 @@ export default function Analytics() {
     downloadXlsx(`asset-${a.assetNumber}-monthly.xlsx`, header, rows, "Monthly");
   };
 
+  // Export the Analytics asset-detail table (all rows shown for the period).
+  const exportDetail = () => {
+    const header = ["Asset #", "Type", "Component", "Ownership", "CLP (USD)", "NBV (USD)",
+      "Accum. depreciation (USD)", "Revenue (USD)", "Utilisation %", "Asset turn"];
+    const data = rows.map(({ a, revenue, util, turn, nbv, dep }) => [
+      a.assetNumber, a.aircraftType, a.nacelle, a.ownership, Math.round(a.clp || 0),
+      Math.round(nbv), Math.round(dep), Math.round(revenue), (util * 100).toFixed(1),
+      turn == null ? "" : Number(turn.toFixed(2)),
+    ]);
+    downloadXlsx(`analytics-${periodLabel.replace(/\s+/g, "-").toLowerCase()}.xlsx`, header, data, "Analytics");
+  };
+
   const agg = useMemo(() => {
     let revenue = 0, leaseIn = 0, nbv = 0, acq = 0, accumDep = 0, clp = 0, count = 0;
     const byType = {}; const byOwn = {}; const removals = { "Long-term lease": 0, "Short-term lease": 0, "Exchange": 0 };
@@ -360,7 +373,7 @@ export default function Analytics() {
                 <span className="fai-sep">·</span>
                 <span className="fai-loc">{focus.ref.location}</span>
                 <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={() => exportAssetMonthly(focus)}
-                  title="Download this asset's month-by-month utilisation, revenue & depreciation (Excel)">⬇ Monthly Excel</button>
+                  title="Download this asset's month-by-month utilisation, revenue & depreciation (Excel)"><DownloadIcon />Monthly Excel</button>
               </div>
             )}
           </div>
@@ -460,6 +473,7 @@ export default function Analytics() {
           <div className="card-head">
             <h3>Asset detail</h3>
             <span className="card-sub">{rows.length} assets · {periodLabel}</span>
+            <button className="btn btn-sm reg-export" onClick={exportDetail} title="Download this table as an Excel spreadsheet"><DownloadIcon />Export to Excel</button>
           </div>
           <div className="atable-wrap">
             <table className="atable">
