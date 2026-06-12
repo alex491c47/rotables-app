@@ -5,6 +5,7 @@ import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mock
 import { getDark, saveDark } from '../lib/theme';
 import { effectiveFinance } from '../lib/analyticsModel';
 import UserMenu from '../components/UserMenu';
+import TopNav from '../components/TopNav';
 
 const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
@@ -676,11 +677,7 @@ export default function Editor() {
           <div className="brand-mark"><BrandMark /></div>
           <div className="brand-text"><span className="brand-name">ST Engineering Solutions</span><span className="brand-tag">Asset Editor</span></div>
         </NavLink>
-        <nav className="topnav">
-          <NavLink to="/" end>Asset Register</NavLink>
-          <NavLink to="/analytics">Analytics</NavLink>
-          <NavLink to="/editor">Editor</NavLink>
-        </nav>
+        <TopNav />
         <div className="header-right">
           <button className="btn" onClick={() => setDark(!dark)}>{dark ? "Light" : "Dark"}</button>
           <UserMenu />

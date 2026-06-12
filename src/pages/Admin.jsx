@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../lib/auth';
 import { getDark, saveDark } from '../lib/theme';
+import TopNav from '../components/TopNav';
 
 const ROLES = ['viewer', 'editor', 'admin'];
 const BrandMark = () => <img src="/logo.png" alt="ST Engineering" className="brand-mark-img" />;
@@ -63,12 +64,7 @@ export default function Admin() {
           <div className="brand-mark"><BrandMark /></div>
           <div className="brand-text"><span className="brand-name">ST Engineering Solutions</span><span className="brand-tag">User Administration</span></div>
         </NavLink>
-        <nav className="topnav">
-          <NavLink to="/" end>Asset Register</NavLink>
-          <NavLink to="/analytics">Analytics</NavLink>
-          <NavLink to="/editor">Editor</NavLink>
-          <NavLink to="/admin">Users</NavLink>
-        </nav>
+        <TopNav />
         <div className="header-right">
           <span className="user-chip">{user.email}</span>
           <button className="btn" onClick={() => setDark(!dark)}>{dark ? 'Light' : 'Dark'}</button>

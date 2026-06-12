@@ -39,6 +39,7 @@ export function AuthProvider({ children }) {
     loading: session === undefined || (!!session && profile === undefined),
     approved: !!(profile && profile.approved),
     role: profile ? profile.role : null,
+    canEdit: !!(profile && profile.approved && (profile.role === 'editor' || profile.role === 'admin')),
     isAdmin: !!(profile && profile.approved && profile.role === 'admin'),
     recovery,
     clearRecovery: () => setRecovery(false),

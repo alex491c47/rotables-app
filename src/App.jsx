@@ -41,7 +41,7 @@ function Pending() {
 }
 
 export default function App() {
-  const { loading, session, approved, recovery } = useAuth()
+  const { loading, session, approved, recovery, canEdit, isAdmin } = useAuth()
   if (recovery) return <ResetPassword />
   if (loading) return <Splash />
   if (!session) return <Login />
@@ -50,8 +50,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/analytics" element={<Analytics />} />
-      <Route path="/editor" element={<Editor />} />
-      <Route path="/admin" element={<Admin />} />
+      <Route path="/editor" element={canEdit ? <Editor /> : <Navigate to="/" replace />} />
+      <Route path="/admin" element={isAdmin ? <Admin /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

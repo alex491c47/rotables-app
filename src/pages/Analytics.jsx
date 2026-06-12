@@ -5,6 +5,7 @@ import { AssetStore, useAssets } from '../data/assetStore';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
+import TopNav from '../components/TopNav';
 
 const TYPE_PALETTE = ["#38bdf8", "#818cf8", "#2dd4bf", "#f472b6", "#fbbf24", "#a3e635", "#fb923c", "#22d3ee", "#c084fc"];
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
@@ -304,11 +305,7 @@ export default function Analytics() {
             <span className="brand-tag">Portfolio Analytics</span>
           </div>
         </NavLink>
-        <nav className="topnav">
-          <NavLink to="/" end>Asset Register</NavLink>
-          <NavLink to="/analytics">Analytics</NavLink>
-          <NavLink to="/editor">Editor</NavLink>
-        </nav>
+        <TopNav />
         <div className="header-right">
           {!selectedAsset && (types.size > 0 || owns.size > 0) && (
             <button className="theme-btn" onClick={() => { setTypes(new Set()); setOwns(new Set()); }}>Clear filters</button>

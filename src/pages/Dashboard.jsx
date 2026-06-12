@@ -6,6 +6,7 @@ import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
+import TopNav from '../components/TopNav';
 
 const GLOBE_THEMES = {
   dark: {
@@ -461,11 +462,7 @@ function Header({ stats }) {
           <span className="brand-tag">Nacelle Asset Operations</span>
         </div>
       </NavLink>
-      <nav className="topnav">
-        <NavLink to="/" end>Asset Register</NavLink>
-        <NavLink to="/analytics">Analytics</NavLink>
-        <NavLink to="/editor">Editor</NavLink>
-      </nav>
+      <TopNav />
       <div className="header-stats">
         <div className="stat"><span className="stat-num">{stats.total}</span><span className="stat-lbl">Assets</span></div>
         <div className="stat stat-wip"><span className="stat-num">{stats.wip}</span><span className="stat-lbl">WIP</span></div>
