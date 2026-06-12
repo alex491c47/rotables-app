@@ -440,7 +440,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                 <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{e.event}
                   {e.contractType && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
                 <div className="tl-meta">
-                  {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || asset.location}</span></span>}
+                  {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
                   {e.customer && <span>{e.customer}</span>}
                   {e.pn && <span className="mono">{e.pn}</span>}
                   {e.leaseDays ? <span>{e.leaseDays} d</span> : null}

@@ -335,7 +335,7 @@ function HistoryTimeline({ asset }) {
                 <span className="hist-move">
                   {h.from ? <span className="loc-from">{h.from}</span> : h.source ? <span className="loc-from">{h.source}</span> : <span className="loc-origin">At facility</span>}
                   <span className="arrow" style={{ color: col }}>{(h.from || h.source) ? "→" : "•"}</span>
-                  <span className="loc-to">{h.to || asset.location}</span>
+                  <span className="loc-to">{h.to || h.from || asset.location}</span>
                 </span>
                 <span className="hist-event"><span className="reason-pip" style={{ background: col }}></span>{h.event}</span>
                 <span className={"hist-pn mono" + (pnChanged ? " pn-changed" : "")}>
