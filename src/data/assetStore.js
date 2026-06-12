@@ -73,10 +73,11 @@ function recompute(a) {
           a.engagementType = ev[i].contractType || null;
           a.contractYears = ev[i].contractYears || null;
           a.customer = ev[i].customer || null;
+          a.monthlyRevenue = ev[i].monthlyRevenue ?? null;   // current long-term monthly fee
           break;
         }
       }
-    } else { a.engagementType = null; a.contractYears = null; }
+    } else { a.engagementType = null; a.contractYears = null; a.monthlyRevenue = null; }
   }
   a.totalRevenue = ev.reduce((s, e) => s + (e.revenue || 0), 0);
   a.daysOnLease = ev.reduce((s, e) => s + (e.leaseDays || 0), 0);

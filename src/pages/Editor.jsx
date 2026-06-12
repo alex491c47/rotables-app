@@ -45,6 +45,11 @@ const EVENT_TYPES = [
   { id: "pool", label: "Back in Pool (Ready to ship)", evt: "Back in Pool", status: "Ready to ship", cat: "shop", fields: ["to", "notes"], req: ["to"] },
   { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
   { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
+  // Long-term lease program swap: only while currently on a long-term lease. A new
+  // P/N is inducted/repaired and goes back to the customer; the asset stays Out on
+  // lease and the monthly fee keeps flowing (carried on this event). Customer /
+  // location / monthly fee are pre-filled from the current lease.
+  { id: "ltlprog", label: "Induction to Shop — long-term lease program (new P/N)", evt: "LTL program — P/N inducted", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "pn", "notes"], req: ["to", "monthlyRevenue", "pn"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
   { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
   // Only offered when the asset is currently out on a short-term lease — the
   // customer converts it to an exchange: daily lease stops, exchange fee applies.
@@ -327,7 +332,10 @@ function EventLogger({ asset, onAppend }) {
       <div className="grid3">
         <Field label="Event type" span>
           <Picker className="select" options={availTypes.map((t) => t.label)} value={def.label}
-            onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({}); if (t.id === "short2exch" && asset.customer) set("customer", asset.customer); } }} />
+            onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({});
+              if (t.id === "short2exch" && asset.customer) set("customer", asset.customer);
+              if (t.id === "ltlprog") setF((s) => ({ ...s, customer: asset.customer || "", to: asset.location || "", monthlyRevenue: asset.monthlyRevenue != null ? String(asset.monthlyRevenue) : "" }));
+            } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
         <Field label="Current location" hint="where the asset is now — update via Relocation"><input className="input mono" value={asset.location || "—"} disabled readOnly /></Field>
