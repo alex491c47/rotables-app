@@ -768,7 +768,7 @@ export default function Editor() {
 
   useEffect(() => { document.body.classList.toggle("theme-light", !dark); saveDark(dark); }, [dark]);
 
-  // Editing presence: mark this asset as open (heartbeat every 45s), check who
+  // Editing presence: mark this asset as open (heartbeat every 30s), check who
   // else has it open, and clear our mark when we leave or switch assets.
   useEffect(() => {
     if (!selId) { setOthersEditing([]); return; }
@@ -779,7 +779,7 @@ export default function Editor() {
       if (!cancelled) setOthersEditing(others);
     };
     ping();
-    const hb = setInterval(ping, 45000);
+    const hb = setInterval(ping, 30000);
     return () => { cancelled = true; clearInterval(hb); setOthersEditing([]); AssetStore.clearEditing(selId); };
   }, [selId]);
 

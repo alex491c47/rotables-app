@@ -290,7 +290,7 @@ export const AssetStore = {
       const { data: ures } = await supabase.auth.getUser();
       const me = ures && ures.user ? ures.user.id : null;
       const { data } = await supabase.from("editing_sessions").select("user_email,user_id,updated_at").eq("asset_number", assetNumber);
-      const cutoff = Date.now() - 120000;   // active = heartbeat within the last 2 min
+      const cutoff = Date.now() - 90000;   // active = heartbeat within the last 90s
       return [...new Set((data || [])
         .filter((r) => r.user_id !== me && Date.parse(r.updated_at) >= cutoff)
         .map((r) => r.user_email || "another user"))];
@@ -350,7 +350,7 @@ export const AssetStore = {
 
 /* Pull everyone's latest data every 10 minutes so people who leave the app open
    see each other's changes (and don't duplicate or overwrite work unknowingly).
-   Runs once for the whole app; skips hidden tabs and any in-flight load. */
+   Runs once for the whole app; skips hidden tabs and any in-flight load (5 min). */
 let autoRefreshStarted = false;
 function startAutoRefresh() {
   if (autoRefreshStarted || typeof window === "undefined") return;
@@ -358,7 +358,7 @@ function startAutoRefresh() {
   setInterval(() => {
     if (typeof document !== "undefined" && document.hidden) return;
     if (status !== "loading") loadAssets();
-  }, 10 * 60 * 1000);
+  }, 5 * 60 * 1000);
 }
 
 /* React hook: subscribe to the cache and trigger the first load */
