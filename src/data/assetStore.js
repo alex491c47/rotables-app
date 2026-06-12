@@ -343,9 +343,6 @@ export const AssetStore = {
   },
 
   recompute,
-  // edit-layer concepts from the old localStorage model no longer apply
-  isBase: () => false, isEdited: () => false, isAdded: () => false, editCount: () => 0,
-  revert: () => {}, resetAll: () => {},
 };
 
 /* Pull everyone's latest data every 10 minutes so people who leave the app open

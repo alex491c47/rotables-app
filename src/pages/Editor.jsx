@@ -25,7 +25,6 @@ function usePersistent(k, initial) {
   return [v, setV];
 }
 
-const TYPE_COLOR = { B787GENX: "#38bdf8", B787TRENT: "#818cf8", A320LEAP: "#2dd4bf" };
 const STATUS_META = {
   "WIP": { c: "var(--wip)" }, "Ready to ship": { c: "var(--ready)" }, "Out on lease": { c: "var(--lease)" },
   // end-of-use states
@@ -406,7 +405,6 @@ function EventLogger({ asset, onAppend }) {
     setErrs({});
   };
   const cls = (k) => "input" + (errs[k] ? " err" : "");
-  const scls = (k) => "select" + (errs[k] ? " err" : "");
 
   return (
     <div className="section">
@@ -637,12 +635,12 @@ function RawFields({ asset, onChange }) {
 
             <div style={{ marginTop: 18 }}>
               <h3 className="section-title" style={{ fontSize: 12.5 }}>Impairments / write-downs
-                <span className="hint">one-off depreciation in a specific month — e.g. fire or accident damage</span></h3>
+                <span className="hint">one-off depreciation in a specific month — e.g. accident damage or impairment</span></h3>
               {adjustments.map((adj, i) => (
                 <div className="adj-row" key={i}>
                   <input type="month" className="input mono" value={adj.month || ""} onChange={(e) => setAdj(i, { month: e.target.value })} />
                   <MoneyInput className="input mono" placeholder="amount written down (USD)" value={adj.amount} onChange={(v) => setAdj(i, { amount: v === "" ? "" : Number(v) })} />
-                  <input className="input" placeholder="reason (e.g. fire damage)" value={adj.note || ""} onChange={(e) => setAdj(i, { note: e.target.value })} />
+                  <input className="input" placeholder="reason (e.g. accident damage)" value={adj.note || ""} onChange={(e) => setAdj(i, { note: e.target.value })} />
                   <button className="icon-btn del" title="Remove this write-down" onClick={() => setAdjustments(adjustments.filter((_, j) => j !== i))}>🗑</button>
                 </div>
               ))}
@@ -928,7 +926,6 @@ export default function Editor() {
     finally { setBusy(false); }
   };
   const discard = () => { selectAsset(selId); flash("Unsaved changes discarded"); };
-  const revert = () => {};
   const removeAsset = async () => {
     setConfirmRemove(false);
     if (busy) return; setBusy(true);
@@ -979,9 +976,7 @@ export default function Editor() {
                   <div className="aitem-id">{a.assetNumber}</div>
                   <div className="aitem-sub">{a.aircraftType} · {a.nacelle}</div>
                 </div>
-                {a.retired ? <span className="aitem-flag retired">{(a.status || "retired").toLowerCase()}</span>
-                  : AssetStore.isAdded(a.assetNumber) ? <span className="aitem-flag new">new</span>
-                  : AssetStore.isEdited(a.assetNumber) ? <span className="aitem-flag">edited</span> : null}
+                {a.retired ? <span className="aitem-flag retired">{(a.status || "retired").toLowerCase()}</span> : null}
               </div>
             ))}
             {list.length === 0 && <div className="dim" style={{ padding: 16, fontSize: 13 }}>
@@ -1011,7 +1006,6 @@ export default function Editor() {
                   {dirty && <span className="dim" style={{ fontSize: 12, color: "var(--wip)" }}>● unsaved</span>}
                   <button className="btn btn-primary" disabled={!dirty || busy} onClick={save} style={!dirty || busy ? { opacity: .5 } : null}>{busy ? "Saving…" : "Save"}</button>
                   {dirty && <button className="btn" onClick={discard} title="Throw away unsaved changes">Discard changes</button>}
-                  {AssetStore.isBase(selId) && AssetStore.isEdited(selId) && <button className="btn" onClick={revert}>Revert</button>}
                   <button className="btn btn-danger btn-sm" onClick={() => setConfirmRemove(true)}>Remove asset</button>
                 </div>
               </div>

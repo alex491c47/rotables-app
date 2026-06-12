@@ -160,7 +160,7 @@ export function buildAN(rawAssets) {
                                             return { nbv: acqValue - dep, accumDep: dep };
                                    }
 
-                                   // manual per-month adjustments / write-downs (e.g. fire damage):
+                                   // manual per-month adjustments / write-downs (e.g. accident damage):
                                    // extra depreciation booked at the end of the given month.
                                    const depAdj = (a.depAdjustments || []).map((x) => {
                                             const p = String(x.month || "").split("-").map(Number);
