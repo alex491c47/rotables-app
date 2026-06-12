@@ -47,21 +47,21 @@ const EVENT_TYPES = [
   { id: "pool", label: "Back in Pool (Ready to ship)", evt: "Back in Pool", status: "Ready to ship", cat: "shop", fields: ["to", "notes"], req: ["to"] },
   { id: "short", label: "Out on short-term lease", evt: "Short-term lease", status: "Out on lease", cat: "out", contractType: "Short-term lease", fields: ["to", "customer", "dailyFee", "notes"], req: ["to", "customer", "dailyFee"] },
   { id: "long", label: "Out on long-term lease", evt: "Long-term lease — start", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "contractYears", "notes"], req: ["to", "customer", "monthlyRevenue", "contractYears"] },
-  // Long-term lease program swap: only while currently on a long-term lease. A new
-  // P/N is inducted/repaired and goes back to the customer; the asset stays Out on
-  // lease and the monthly fee keeps flowing (carried on this event). Customer /
-  // location / monthly fee are pre-filled from the current lease.
-  { id: "ltlprog", label: "Induction to Shop — long-term lease program (new P/N)", evt: "LTL program — P/N inducted", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "pn", "notes"], req: ["to", "monthlyRevenue", "pn"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
+  // Long-term lease program swap: a new P/N is inducted/repaired and goes back to
+  // the customer; the asset stays Out on lease and the monthly fee keeps flowing.
+  // Customer + monthly fee are carried over automatically (not re-entered); only
+  // the new P/N (and location, pre-filled) are asked for.
+  { id: "ltlprog", label: "Induction to Shop — long-term lease program (new P/N)", evt: "LTL program — P/N inducted", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "pn", "notes"], req: ["to", "pn"] },
   // End of the long-term lease program: the asset comes back, still the same asset
   // record. Two outcomes — straight to the pool (a ready spare) or into the shop to
   // be overhauled (the returned core). Either way we can optionally take over the
   // other unit (enter its P/N; blank = keep our unit) and may charge an exchange fee.
-  { id: "ltlend", label: "End of long-term lease program — ready to ship", evt: "LTL program — ended (to pool)", status: "Ready to ship", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
-  { id: "ltlendshop", label: "End of long-term lease program — into shop (overhaul)", evt: "LTL program — ended (to shop)", status: "WIP", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
+  { id: "ltlend", label: "End of long-term lease program — ready to ship", evt: "LTL program — ended (to pool)", status: "Ready to ship", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"] },
+  { id: "ltlendshop", label: "End of long-term lease program — into shop (overhaul)", evt: "LTL program — ended (to shop)", status: "WIP", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"] },
   { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
-  // Only offered when the asset is currently out on a short-term lease — the
-  // customer converts it to an exchange: daily lease stops, exchange fee applies.
-  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Short-term lease" },
+  // The customer converts an active short-term lease to an exchange: daily lease
+  // stops, exchange fee applies.
+  { id: "short2exch", label: "Convert short-term lease → exchange", evt: "Exchange (converted from lease)", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["customer", "exchangeFee", "notes"], req: ["exchangeFee"] },
   // Exchange core comes back to us — recertification fee applies; no customer is
   // tied to the returned core.
   { id: "exchin", label: "Exchange core received (new P/N in)", evt: "Induction", status: "WIP", cat: "in", contractType: "Exchange", fields: ["to", "pn", "recertFee", "notes"], req: ["to", "pn"] },
@@ -74,6 +74,30 @@ const EVENT_TYPES = [
   { id: "destroyed", label: "End of use — destroyed (fire / write-off)", evt: "Destroyed", status: "Destroyed", cat: "end", fields: ["customer", "notes"], req: [] },
 ];
 const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee", "salePrice"];
+
+// Which event types make sense from the asset's CURRENT state, so the dropdown
+// only offers realistic next steps (you can't scrap or relocate a unit that's
+// out at a customer — it has to come back to us first; you can't recertify a
+// unit that isn't out; etc.). End-of-use events that need the unit in hand are
+// only offered when it's with us; "destroyed" (an accident) can happen anywhere.
+const FLOW_BY_STATUS = {
+  "WIP":           ["pool", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
+  "Ready to ship": ["wip", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
+};
+const FLOW_OUT_BY_ENGAGEMENT = {
+  "Short-term lease": ["recert", "pool", "short2exch", "return", "sold", "destroyed"],
+  "Long-term lease":  ["ltlprog", "ltlend", "ltlendshop", "return", "sold", "destroyed"],
+  "Exchange":         ["exchin", "return", "sold", "destroyed"],
+};
+function allowedEventIds(asset) {
+  if (asset.status === "Out on lease") {
+    return FLOW_OUT_BY_ENGAGEMENT[asset.engagementType] || ["recert", "pool", "return", "sold", "destroyed"];
+  }
+  // active in-house states are gated; anything else (e.g. archived) isn't trapped
+  return FLOW_BY_STATUS[asset.status] || EVENT_TYPES.map((t) => t.id);
+}
+// full list, alphabetical — for correcting a past event's type (any type allowed)
+const EVENT_TYPES_SORTED = [...EVENT_TYPES].sort((a, b) => a.label.localeCompare(b.label));
 
 const NOW_MS = AssetCalc.TODAY_MS;
 const dMs = (d) => Date.parse(d + "T00:00:00Z");
@@ -279,10 +303,12 @@ function Picker({ value, onChange, options, placeholder, className }) {
 
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = usePersistent("evtType", "pool");
-  // some events only make sense in a given state (e.g. converting a short-term
-  // lease to an exchange is only possible while the asset is on a short-term lease)
-  const availTypes = useMemo(() => EVENT_TYPES.filter((t) => !t.avail || t.avail(asset)), [asset.status, asset.engagementType]);
-  const def = EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES.find((t) => t.id === "pool");
+  // only offer the next steps that make sense from the asset's current state,
+  // listed alphabetically so they're easy to find
+  const availTypes = useMemo(() =>
+    EVENT_TYPES.filter((t) => allowedEventIds(asset).includes(t.id)).sort((a, b) => a.label.localeCompare(b.label)),
+    [asset.status, asset.engagementType]);
+  const def = availTypes.find((t) => t.id === typeId) || availTypes[0] || EVENT_TYPES[0];
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
@@ -295,8 +321,9 @@ function EventLogger({ asset, onAppend }) {
       setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
     }
   }, [asset.assetNumber]);
-  // if the selected type is no longer valid for this asset's state, fall back
-  useEffect(() => { if (!availTypes.some((t) => t.id === typeId)) setTypeId("pool"); }, [availTypes, typeId]);
+  // if the selected type is no longer valid for this asset's state, fall back to
+  // the first available next step
+  useEffect(() => { if (availTypes.length && !availTypes.some((t) => t.id === typeId)) setTypeId(availTypes[0].id); }, [availTypes, typeId]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
   const isLease = def.cat === "out" && def.contractType !== "Exchange";
@@ -327,6 +354,12 @@ function EventLogger({ asset, onAppend }) {
     if (has("exchangeFee")) e.exchangeFee = Number(f.exchangeFee) || 0;
     if (has("recertFee") && f.recertFee !== "") e.recertFee = Number(f.recertFee) || 0;
     if (has("salePrice") && f.salePrice !== "") e.salePrice = Number(f.salePrice) || 0;
+    // the LTL program induction keeps the same customer + monthly fee as the
+    // running lease — carried over here rather than re-entered
+    if (def.id === "ltlprog") {
+      e.customer = asset.customer || null;
+      e.monthlyRevenue = asset.monthlyRevenue != null ? asset.monthlyRevenue : 0;
+    }
     onAppend(e);
     setF(makeBlank());
     setErrs({});
@@ -342,7 +375,7 @@ function EventLogger({ asset, onAppend }) {
           <Picker className="select" options={availTypes.map((t) => t.label)} value={def.label}
             onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({});
               if (t.id === "short2exch" && asset.customer) set("customer", asset.customer);
-              if (t.id === "ltlprog") setF((s) => ({ ...s, customer: asset.customer || "", to: asset.location || "", monthlyRevenue: asset.monthlyRevenue != null ? String(asset.monthlyRevenue) : "" }));
+              if (t.id === "ltlprog") set("to", asset.location || "");   // customer + monthly fee carry over automatically
             } }} />
         </Field>
         <Field label="Date" req><DateField className="input mono" value={f.date} onChange={(v) => set("date", v)} /></Field>
@@ -454,7 +487,7 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                   return (
                     <div className="tl-inline">
                       <label className="tl-city">Event type
-                        <Picker className="select" options={EVENT_TYPES.map((t) => t.label)} value={(EVENT_TYPES.find((t) => t.id === tId) || {}).label || ""}
+                        <Picker className="select" options={EVENT_TYPES_SORTED.map((t) => t.label)} value={(EVENT_TYPES.find((t) => t.id === tId) || {}).label || ""}
                           onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setMsg(null); onChangeType(idx, t.id); } }} />
                       </label>
                       <label>Date
