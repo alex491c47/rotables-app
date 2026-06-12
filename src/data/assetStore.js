@@ -175,6 +175,18 @@ async function loadAssets() {
   }
 }
 
+// best-effort audit entry: who did what to which asset, when (never blocks the save)
+async function logAction(action, assetNumber, summary) {
+  try {
+    const { data } = await supabase.auth.getUser();
+    const user = data && data.user;
+    if (!user) return;
+    await supabase.from("audit_log").insert({
+      user_id: user.id, user_email: user.email, action, asset_number: assetNumber, summary,
+    });
+  } catch (e) { /* audit is best-effort — don't disrupt the user */ }
+}
+
 export const AssetStore = {
   list: () => currentAssets.filter((a) => !a.retired),     // active — Register / Editor / globe
   listAll: () => currentAssets,                            // everything incl. retired — Analytics
@@ -185,6 +197,7 @@ export const AssetStore = {
   reload: loadAssets,
 
   async save(asset) {
+    const existed = !!currentAssets.find((x) => x.assetNumber === asset.assetNumber);
     const { data: up, error: e1 } = await supabase
       .from("assets").upsert(assetToRow(asset), { onConflict: "asset_number" }).select("id").single();
     if (e1) throw e1;
@@ -196,6 +209,8 @@ export const AssetStore = {
       const { error: eIns } = await supabase.from("asset_events").insert(rows);
       if (eIns) throw eIns;
     }
+    await logAction(existed ? "edited" : "created", asset.assetNumber,
+      asset.description || `${asset.aircraftType || ""} ${asset.nacelle || ""}`.trim());
     await loadAssets();
   },
 
@@ -205,6 +220,7 @@ export const AssetStore = {
       const { error } = await supabase.from("assets").update({ deleted_at: new Date().toISOString() }).eq("id", a._id);
       if (error) throw error;
     }
+    await logAction("removed", id, a ? (a.description || `${a.aircraftType || ""} ${a.nacelle || ""}`.trim()) : "");
     await loadAssets();
   },
 

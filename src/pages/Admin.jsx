@@ -14,6 +14,7 @@ export default function Admin() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [activity, setActivity] = useState([]);
 
   useEffect(() => { document.body.classList.toggle('theme-light', !dark); saveDark(dark); }, [dark]);
 
@@ -21,6 +22,8 @@ export default function Admin() {
     setLoading(true);
     const { data } = await supabase.from('profiles').select('*').order('requested_at', { ascending: false });
     setRows(data || []);
+    const { data: log } = await supabase.from('audit_log').select('*').order('at', { ascending: false }).limit(100);
+    setActivity(log || []);
     setLoading(false);
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -87,6 +90,23 @@ export default function Admin() {
             {loading ? <div className="dim">Loading…</div> : (
               <table className="atable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th className="num">Action</th></tr></thead>
                 <tbody>{team.map((r) => <Row key={r.id} r={r} />)}</tbody></table>
+            )}
+          </div>
+        </section>
+        <section className="card" style={{ marginTop: 18 }}>
+          <div className="card-head"><h3>Recent activity</h3><span className="card-sub">who changed what · latest 100</span></div>
+          <div className="card-body">
+            {loading ? <div className="dim">Loading…</div> : activity.length === 0 ? <div className="dim">No changes recorded yet.</div> : (
+              <table className="atable"><thead><tr><th>When</th><th>Who</th><th>Action</th><th>Asset</th><th>Details</th></tr></thead>
+                <tbody>{activity.map((e) => (
+                  <tr key={e.id}>
+                    <td className="dim">{new Date(e.at).toLocaleString()}</td>
+                    <td>{e.user_email}</td>
+                    <td><span className={'act-tag act-' + e.action}>{e.action}</span></td>
+                    <td className="mono">{e.asset_number || '—'}</td>
+                    <td className="dim">{e.summary}</td>
+                  </tr>
+                ))}</tbody></table>
             )}
           </div>
         </section>
