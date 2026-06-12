@@ -260,13 +260,20 @@ function Picker({ value, onChange, options, placeholder, className }) {
 }
 
 function EventLogger({ asset, onAppend }) {
-  const [typeId, setTypeId] = useState("pool");
-  const def = EVENT_TYPES.find((t) => t.id === typeId);
+  const [typeId, setTypeId] = usePersistent("evtType", "pool");
+  const def = EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES.find((t) => t.id === "pool");
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
-  const [f, setF] = useState(makeBlank);
+  const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
   const [showLoc, setShowLoc] = usePersistent("showLoc", false);
-  useEffect(() => { setF(makeBlank()); setErrs({}); }, [asset.assetNumber]);
+  // The in-progress event form survives navigating away and back (it's persisted),
+  // but is reset to blank when you switch to a DIFFERENT asset — tracked via owner.
+  const [fOwner, setFOwner] = usePersistent("evtFormOwner", null);
+  useEffect(() => {
+    if (fOwner !== asset.assetNumber) {
+      setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
+    }
+  }, [asset.assetNumber]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
   const isLease = def.cat === "out" && def.contractType !== "Exchange";
