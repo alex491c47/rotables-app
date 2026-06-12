@@ -209,6 +209,34 @@ async function loadAssets() {
   }
 }
 
+// Build a human summary of what actually changed between the saved version and the
+// previous one, for the activity log (e.g. "logged 'Short-term lease' (Out on lease);
+// P/N BDL-001→BDL-002"). Falls back to the description when nothing notable changed.
+function summariseChanges(oldA, newA) {
+  const fallback = newA.description || `${newA.aircraftType || ""} ${newA.nacelle || ""}`.trim();
+  if (!oldA) return fallback;
+  const parts = [];
+  const oldH = oldA.history || [], newH = newA.history || [];
+  if (newH.length > oldH.length) {
+    const added = newH.length - oldH.length;
+    const last = newH[newH.length - 1];
+    parts.push(`logged "${last.event}"${last.status ? ` (${last.status})` : ""}${added > 1 ? ` +${added - 1} more` : ""}`);
+  } else if (newH.length < oldH.length) {
+    const removed = oldH.length - newH.length;
+    parts.push(`removed ${removed} event${removed > 1 ? "s" : ""}`);
+  }
+  const chg = (label, a, b) => { if ((a ?? "") !== (b ?? "")) parts.push(`${label} ${a || "—"}→${b || "—"}`); };
+  chg("status", oldA.status, newA.status);
+  chg("location", oldA.location, newA.location);
+  chg("P/N", oldA.partNumber, newA.partNumber);
+  chg("ownership", oldA.ownership, newA.ownership);
+  chg("customer", oldA.customer, newA.customer);
+  if ((oldA.acquisitionValue ?? null) !== (newA.acquisitionValue ?? null)) parts.push("acquisition value updated");
+  if ((oldA.depLife ?? null) !== (newA.depLife ?? null) || (oldA.depMethod || "") !== (newA.depMethod || "") || (oldA.depResidual ?? 0) !== (newA.depResidual ?? 0)) parts.push("depreciation scheme updated");
+  if ((oldA.depAdjustments || []).length !== (newA.depAdjustments || []).length) parts.push("write-down(s) updated");
+  return parts.length ? parts.join("; ") : `minor edit — ${fallback}`;
+}
+
 // best-effort audit entry: who did what to which asset, when (never blocks the save)
 async function logAction(action, assetNumber, summary) {
   try {
@@ -241,7 +269,8 @@ export const AssetStore = {
   reload: loadAssets,
 
   async save(asset) {
-    const existed = !!currentAssets.find((x) => x.assetNumber === asset.assetNumber);
+    const prev = currentAssets.find((x) => x.assetNumber === asset.assetNumber);
+    const existed = !!prev;
     const { data: up, error: e1 } = await supabase
       .from("assets").upsert(assetToRow(asset), { onConflict: "asset_number" }).select("id").single();
     if (e1) throw e1;
@@ -261,7 +290,7 @@ export const AssetStore = {
       try { await supabase.from("customers").upsert(newCustomers.map((name) => ({ name })), { onConflict: "name" }); } catch (e) {}
     }
     await logAction(existed ? "edited" : "created", asset.assetNumber,
-      asset.description || `${asset.aircraftType || ""} ${asset.nacelle || ""}`.trim());
+      existed ? summariseChanges(prev, asset) : (asset.description || `${asset.aircraftType || ""} ${asset.nacelle || ""}`.trim()));
     await loadAssets();
   },
 
