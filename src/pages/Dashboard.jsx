@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AssetStore, AssetCalc, useAssets } from '../data/assetStore';
-import { downloadCsv } from '../lib/exportCsv';
+import { downloadXlsx } from '../lib/exportCsv';
 import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
@@ -636,7 +636,7 @@ export default function Dashboard() {
       return [a.assetNumber, a.aircraftType, a.nacelle, a.partNumber, a.location, a.previousStatus || "",
         a.status, a.engagementType || "", a.daysOnLease, Math.round(a.totalRevenue), d == null ? "" : d, a.lastUpdated];
     });
-    downloadCsv("asset-register.csv", header, rows);
+    downloadXlsx("asset-register.xlsx", header, rows, "Asset Register");
   };
 
   const selectAsset = useCallback((id) => {
@@ -681,7 +681,7 @@ export default function Dashboard() {
             <div className="table-section-head">
               <span className="ts-title">Asset Register</span>
               <span className="ts-sub">{filtered.length} assets{endingSoonCount > 0 ? ` · ${endingSoonCount} lease${endingSoonCount === 1 ? "" : "s"} ending within ${LEASE_SOON_DAYS} days` : ""} · click a row for history</span>
-              <button className="btn btn-sm reg-export" onClick={exportRegister} title="Download the current table as a spreadsheet (CSV)">⬇ Export</button>
+              <button className="btn btn-sm reg-export" onClick={exportRegister} title="Download the current table as an Excel spreadsheet">⬇ Export to Excel</button>
             </div>
             <AssetTable assets={filtered} expandedId={expandedId} onToggle={onToggle} />
           </div>

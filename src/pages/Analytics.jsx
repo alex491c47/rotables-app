@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { buildAN } from '../lib/analyticsModel';
 import { AssetStore, useAssets } from '../data/assetStore';
-import { downloadCsv } from '../lib/exportCsv';
+import { downloadXlsx } from '../lib/exportCsv';
 import { BarChart, LineChart, StackBar, Donut, fmtUSD, fmtPct, fmtPct1 } from '../components/AnalyticsCharts';
 import { getDark, saveDark } from '../lib/theme';
 import UserMenu from '../components/UserMenu';
@@ -233,7 +233,7 @@ export default function Analytics() {
       ]);
       m += 1; if (m > 11) { m = 0; y += 1; }
     }
-    downloadCsv(`asset-${a.assetNumber}-monthly.csv`, header, rows);
+    downloadXlsx(`asset-${a.assetNumber}-monthly.xlsx`, header, rows, "Monthly");
   };
 
   const agg = useMemo(() => {
@@ -360,7 +360,7 @@ export default function Analytics() {
                 <span className="fai-sep">·</span>
                 <span className="fai-loc">{focus.ref.location}</span>
                 <button className="btn btn-sm" style={{ marginLeft: 10 }} onClick={() => exportAssetMonthly(focus)}
-                  title="Download this asset's month-by-month utilisation, revenue & depreciation (CSV)">⬇ Monthly CSV</button>
+                  title="Download this asset's month-by-month utilisation, revenue & depreciation (Excel)">⬇ Monthly Excel</button>
               </div>
             )}
           </div>
