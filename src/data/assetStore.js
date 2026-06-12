@@ -319,10 +319,23 @@ export const AssetStore = {
   revert: () => {}, resetAll: () => {},
 };
 
+/* Pull everyone's latest data every 10 minutes so people who leave the app open
+   see each other's changes (and don't duplicate or overwrite work unknowingly).
+   Runs once for the whole app; skips hidden tabs and any in-flight load. */
+let autoRefreshStarted = false;
+function startAutoRefresh() {
+  if (autoRefreshStarted || typeof window === "undefined") return;
+  autoRefreshStarted = true;
+  setInterval(() => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (status !== "loading") loadAssets();
+  }, 10 * 60 * 1000);
+}
+
 /* React hook: subscribe to the cache and trigger the first load */
 export function useAssets() {
   const v = useSyncExternalStore(subscribeAssets, () => version, () => version);
-  useEffect(() => { if (status === "idle") loadAssets(); }, []);
+  useEffect(() => { if (status === "idle") loadAssets(); startAutoRefresh(); }, []);
   return v;
 }
 export function assetsStatus() { return status; }

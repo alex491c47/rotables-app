@@ -7,6 +7,7 @@ import { effectiveFinance } from '../lib/analyticsModel';
 import UserMenu from '../components/UserMenu';
 import TopNav from '../components/TopNav';
 import { BusyOverlay } from '../components/Spinner';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 /* sessionStorage-backed state — survives navigating to another page and back
    (and a reload), so a half-finished asset/location pop-up or unsaved edits
@@ -759,6 +760,7 @@ export default function Editor() {
   const [draft, setDraft] = usePersistent("draft", null);
   const [dirty, setDirty] = usePersistent("dirty", false);
   const [toast, setToast] = useState(null);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [showNew, setShowNew] = usePersistent("showNew", false);
   const [tick, setTick] = useState(0);
   const [showArchived, setShowArchived] = usePersistent("archived", false);
@@ -837,7 +839,7 @@ export default function Editor() {
   const discard = () => { selectAsset(selId); flash("Unsaved changes discarded"); };
   const revert = () => {};
   const removeAsset = async () => {
-    if (!confirm("Remove this asset from the register?")) return;
+    setConfirmRemove(false);
     if (busy) return; setBusy(true);
     const id = selId;
     try { await AssetStore.remove(id); setSelId(null); setDraft(null); flash("Asset removed"); }
@@ -919,7 +921,7 @@ export default function Editor() {
                   <button className="btn btn-primary" disabled={!dirty || busy} onClick={save} style={!dirty || busy ? { opacity: .5 } : null}>{busy ? "Saving…" : "Save"}</button>
                   {dirty && <button className="btn" onClick={discard} title="Throw away unsaved changes">Discard changes</button>}
                   {AssetStore.isBase(selId) && AssetStore.isEdited(selId) && <button className="btn" onClick={revert}>Revert</button>}
-                  <button className="btn btn-danger btn-sm" onClick={removeAsset}>Remove asset</button>
+                  <button className="btn btn-danger btn-sm" onClick={() => setConfirmRemove(true)}>Remove asset</button>
                 </div>
               </div>
 
@@ -934,6 +936,9 @@ export default function Editor() {
       </div>
 
       {showNew && <NewAssetModal onClose={() => { setShowNew(false); clearSS("newAsset"); }} onCreate={createAsset} />}
+      {confirmRemove && <ConfirmModal title="Remove asset?" danger busy={busy}
+        message={`Remove ${selId || "this asset"} from the register? It will no longer appear in the register, analytics or history for anyone.`}
+        confirmLabel="Remove asset" onConfirm={removeAsset} onCancel={() => setConfirmRemove(false)} />}
       <BusyOverlay show={busy || (assetsStatus() === "loading" && AssetStore.listAll().length === 0)} label={busy ? "Saving…" : "Loading assets…"} />
       {toast && <div className="toast">{toast}</div>}
     </div>
