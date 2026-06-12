@@ -78,9 +78,42 @@ const EVENT_TYPES = [
 ];
 const FEE_FIELDS = ["dailyFee", "monthlyRevenue", "exchangeFee", "contractYears", "recertFee", "salePrice"];
 
-// All event types are selectable (sorted alphabetically so they're easy to find).
-// We don't hard-gate by state — the realistic flow is left to the operator, so
-// e.g. a long-term lease can be resumed to the customer straight from the shop.
+// Event types offered for the asset's current state, so the dropdown only shows
+// realistic next steps (a unit out at a customer can't be scrapped/relocated — it
+// has to come back first; you can't recertify a unit that isn't out; etc.).
+// End-of-use that needs the unit in hand is only offered when it's with us;
+// "write-off" (an accident/loss) can happen anywhere.
+const FLOW_BY_STATUS = {
+  "WIP":           ["pool", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
+  "Ready to ship": ["wip", "reloc", "short", "long", "exch", "sold", "scrap", "destroyed"],
+};
+const FLOW_OUT_BY_ENGAGEMENT = {
+  "Short-term lease": ["recert", "pool", "short2exch", "return", "sold", "destroyed"],
+  "Long-term lease":  ["rerate", "ltlprog", "ltlend", "ltlendshop", "return", "sold", "destroyed"],
+  "Exchange":         ["exchin", "return", "sold", "destroyed"],
+};
+// True while a long-term lease program is still open — the unit has come in to us
+// (WIP/pool) between swaps but the lease hasn't ended. Lets us resume the lease to
+// the customer (new P/N) or end the program from the shop, so we never get stuck.
+function inLongTermProgram(asset) {
+  const hist = asset.history || [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const e = hist[i];
+    if (e.cat === "end") return false;
+    if (e.event === "LTL program — ended (to pool)" || e.event === "LTL program — ended (to shop)") return false;
+    if (e.contractType === "Long-term lease") return true;
+  }
+  return false;
+}
+function allowedEventIds(asset) {
+  if (asset.status === "Out on lease") {
+    return FLOW_OUT_BY_ENGAGEMENT[asset.engagementType] || ["recert", "pool", "return", "sold", "destroyed"];
+  }
+  const base = FLOW_BY_STATUS[asset.status];
+  if (!base) return EVENT_TYPES.map((t) => t.id);   // archived/unknown: don't trap
+  // mid long-term-lease program: also allow resuming to the customer / ending it
+  return inLongTermProgram(asset) ? [...base, "ltlprog", "ltlend", "ltlendshop"] : base;
+}
 const EVENT_TYPES_SORTED = [...EVENT_TYPES].sort((a, b) => a.label.localeCompare(b.label));
 
 // The terms of the lease currently in effect, read from the most recent long-term
@@ -301,8 +334,11 @@ function Picker({ value, onChange, options, placeholder, className }) {
 
 function EventLogger({ asset, onAppend }) {
   const [typeId, setTypeId] = usePersistent("evtType", "pool");
-  const availTypes = EVENT_TYPES_SORTED;   // all events, alphabetical
-  const def = EVENT_TYPES.find((t) => t.id === typeId) || EVENT_TYPES_SORTED[0];
+  // only the next steps that make sense from the asset's current state, alphabetical
+  const availTypes = useMemo(() =>
+    EVENT_TYPES.filter((t) => allowedEventIds(asset).includes(t.id)).sort((a, b) => a.label.localeCompare(b.label)),
+    [asset.status, asset.engagementType, asset.history]);
+  const def = availTypes.find((t) => t.id === typeId) || availTypes[0] || EVENT_TYPES[0];
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
@@ -315,6 +351,9 @@ function EventLogger({ asset, onAppend }) {
       setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
     }
   }, [asset.assetNumber]);
+  // if the selected type isn't valid for the asset's current state, fall back to
+  // the first available next step
+  useEffect(() => { if (availTypes.length && !availTypes.some((t) => t.id === typeId)) setTypeId(availTypes[0].id); }, [availTypes, typeId]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
   const has = (k) => def.fields.includes(k);
   const isLease = def.cat === "out" && def.contractType !== "Exchange";
