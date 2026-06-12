@@ -50,6 +50,12 @@ const EVENT_TYPES = [
   // lease and the monthly fee keeps flowing (carried on this event). Customer /
   // location / monthly fee are pre-filled from the current lease.
   { id: "ltlprog", label: "Induction to Shop — long-term lease program (new P/N)", evt: "LTL program — P/N inducted", status: "Out on lease", cat: "out", contractType: "Long-term lease", fields: ["to", "customer", "monthlyRevenue", "pn", "notes"], req: ["to", "monthlyRevenue", "pn"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
+  // End of the long-term lease program: the asset comes back, still the same asset
+  // record. Two outcomes — straight to the pool (a ready spare) or into the shop to
+  // be overhauled (the returned core). Either way we can optionally take over the
+  // other unit (enter its P/N; blank = keep our unit) and may charge an exchange fee.
+  { id: "ltlend", label: "End of long-term lease program — ready to ship", evt: "LTL program — ended (to pool)", status: "Ready to ship", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
+  { id: "ltlendshop", label: "End of long-term lease program — into shop (overhaul)", evt: "LTL program — ended (to shop)", status: "WIP", cat: "in", fields: ["to", "pn", "exchangeFee", "notes"], req: ["to"], avail: (a) => a.status === "Out on lease" && a.engagementType === "Long-term lease" },
   { id: "exch", label: "Out on exchange", evt: "Exchange", status: "Out on lease", cat: "out", contractType: "Exchange", fields: ["to", "customer", "exchangeFee", "notes"], req: ["to", "customer", "exchangeFee"] },
   // Only offered when the asset is currently out on a short-term lease — the
   // customer converts it to an exchange: daily lease stops, exchange fee applies.
@@ -348,8 +354,8 @@ function EventLogger({ asset, onAppend }) {
         {has("dailyFee") && <Field label="Daily lease fee (USD/day)" req hint="revenue recognised per day on lease"><MoneyInput className={cls("dailyFee") + " mono"} value={f.dailyFee} onChange={(v) => set("dailyFee", v)} /></Field>}
         {has("monthlyRevenue") && <Field label="Monthly revenue (USD/month)" req hint="recognised per month on lease"><MoneyInput className={cls("monthlyRevenue") + " mono"} value={f.monthlyRevenue} onChange={(v) => set("monthlyRevenue", v)} /></Field>}
         {has("contractYears") && <Field label="Contract length (years)" req hint="for utilisation planning"><input type="number" inputMode="numeric" className={cls("contractYears") + " mono"} value={f.contractYears} onChange={(e) => set("contractYears", e.target.value)} placeholder="e.g. 5" /></Field>}
-        {has("exchangeFee") && <Field label="Exchange fee (USD)" req hint="recognised in the exchange month"><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
-        {has("pn") && <Field label="Part number received" req><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder="new P/N" /></Field>}
+        {has("exchangeFee") && <Field label="Exchange fee (USD)" req={def.req.includes("exchangeFee")} hint={def.id.startsWith("ltlend") ? "optional — fee for taking over the other unit" : "recognised in the exchange month"}><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
+        {has("pn") && <Field label="Part number received" req={def.req.includes("pn")} hint={def.id.startsWith("ltlend") ? "leave blank to keep your unit; enter a P/N to take over the overhauled one" : undefined}><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder={def.id.startsWith("ltlend") ? "optional new P/N" : "new P/N"} /></Field>}
         {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
         {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
