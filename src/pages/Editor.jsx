@@ -34,7 +34,7 @@ const EVENT_TYPES = [
   { id: "recert", label: "Recertification (lease return)", evt: "Recertification", status: "WIP", cat: "in", fields: ["to", "customer", "recertFee", "notes"], req: ["to"] },
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
   // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
-  { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["customer", "notes"], req: [] },
+  { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["notes"], req: [] },
   { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Sold", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
   { id: "scrap", label: "End of use — scrapped for parts", evt: "Scrapped for parts", status: "Retired", cat: "end", fields: ["notes"], req: [] },
   { id: "destroyed", label: "End of use — destroyed (fire / write-off)", evt: "Destroyed", status: "Destroyed", cat: "end", fields: ["customer", "notes"], req: [] },

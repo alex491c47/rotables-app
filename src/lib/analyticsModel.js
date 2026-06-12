@@ -71,6 +71,16 @@ export function effectiveFinance(a) {
 export const ymKey = (y, m) => y + "-" + String(m + 1).padStart(2, "0");
 export const dim = (y, m) => new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
 
+// Fractional months between two dates, counted so each whole calendar month is
+// worth exactly 1 — lets depreciation be booked evenly per month (not by day count).
+function monthsElapsed(fromMs, toMs) {
+  if (toMs <= fromMs) return 0;
+  const a = new Date(fromMs), b = new Date(toMs);
+  const af = a.getUTCDate() / dim(a.getUTCFullYear(), a.getUTCMonth());
+  const bf = b.getUTCDate() / dim(b.getUTCFullYear(), b.getUTCMonth());
+  return Math.max(0, (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth()) + (bf - af));
+}
+
 function spreadDays(startISO, numDays) {
      const out = [];
      let d = new Date(startISO + "T00:00:00Z");
@@ -137,16 +147,16 @@ export function buildAN(rawAssets) {
                                             if (asof < inMs || !acqValue) return { nbv: asof >= inMs ? acqValue : 0, accumDep: 0 };
                                             if (depOverride && depOverride.from && depOverride.life > 0) {
                                                        const fromMs = Math.max(new Date(depOverride.from + "T00:00:00Z").getTime(), inMs);
-                                                       const yToFrom = Math.max(0, (Math.min(asof, fromMs) - inMs) / (365.25 * DAY));
+                                                       const yToFrom = monthsElapsed(inMs, Math.min(asof, fromMs)) / 12;
                                                        const depOld = baseAccum(yToFrom);
                                                        if (asof <= fromMs) return { nbv: acqValue - depOld, accumDep: depOld };
                                                        const nbvAtFrom = acqValue - depOld;
                                                        const residualAbs = (depOverride.residual || 0) * acqValue;
                                                        const annualNew = Math.max(0, nbvAtFrom - residualAbs) / depOverride.life;
-                                                       const depNew = Math.min(Math.max(0, nbvAtFrom - residualAbs), annualNew * ((asof - fromMs) / (365.25 * DAY)));
+                                                       const depNew = Math.min(Math.max(0, nbvAtFrom - residualAbs), annualNew * (monthsElapsed(fromMs, asof) / 12));
                                                        return { nbv: acqValue - depOld - depNew, accumDep: depOld + depNew };
                                             }
-                                            const dep = baseAccum((asof - inMs) / (365.25 * DAY));
+                                            const dep = baseAccum(monthsElapsed(inMs, asof) / 12);
                                             return { nbv: acqValue - dep, accumDep: dep };
                                    }
 
