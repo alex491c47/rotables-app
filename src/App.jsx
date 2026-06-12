@@ -2,6 +2,7 @@ import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Dashboard from './pages/Dashboard'
 import Analytics from './pages/Analytics'
+import Customers from './pages/Customers'
 import Editor from './pages/Editor'
 import Admin from './pages/Admin'
 import Login from './pages/Login'
@@ -51,6 +52,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Dashboard />} />
       <Route path="/analytics" element={<Analytics />} />
+      <Route path="/customers" element={<Customers />} />
       <Route path="/editor" element={canEdit ? <Editor /> : <Navigate to="/" replace />} />
       <Route path="/admin" element={isAdmin ? <Admin /> : <Navigate to="/" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
