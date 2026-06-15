@@ -329,12 +329,14 @@ export class AssetGlobe {
 
     const tnow = (now - this.t0) / 1000;
     const showingAgg = !this.focusMarkers.length && this.aggregates.length > 0;
-    // Inactive cities (hubs + anywhere the fleet has ever been, but with no asset
-    // there right now) render as a soft BLURRED dot that melts into the globe — so a
-    // long history of visited locations stays as quiet texture, not a field of loud
-    // markers. Only currently-active cities get the bright aggregate bubbles below.
+    // Only permanent HUBS show as standing markers (a soft blurred dot, for
+    // orientation). A city the fleet merely passed through once — e.g. a lease
+    // destination — leaves NO residual dot once the asset has moved on; it just
+    // blends back into the globe. Currently-active cities get the bright aggregate
+    // bubbles drawn below.
     const cityCol = T.cityDim || "150,180,210";
     for (const m of this.markers) {
+      if (m.kind !== "hub") continue;                        // skip one-off / inactive cities
       if (showingAgg && this._aggLabels.has(m.label)) continue;
       const p = this._rotPoint(m.v);
       if (p[2] <= 0.04) continue;
