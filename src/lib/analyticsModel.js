@@ -178,6 +178,20 @@ export function buildAN(rawAssets) {
                                             };
                                    }
 
+                                   // End of life: when an owned / long-term-leased unit is returned, sold,
+                                   // scrapped or written off, its remaining book value is fully depreciated
+                                   // (disposed) at the retirement date — NBV → 0 from then on, with the leftover
+                                   // booked as the final month's depreciation. Short-term leased units carry no
+                                   // book value (acqValue 0), so this is a no-op for them.
+                                   if (a.retired && a.retiredDate && acqValue) {
+                                            const retMs = new Date(a.retiredDate + "T00:00:00Z").getTime();
+                                            const preEolDepAt = depAt;
+                                            depAt = function (asof) {
+                                                       if (asof >= retMs) return { nbv: 0, accumDep: acqValue };
+                                                       return preEolDepAt(asof);
+                                            };
+                                   }
+
                                    const now = depAt(TODAY.getTime());
          const accumDep = now.accumDep, nbv = now.nbv;
 

@@ -291,6 +291,61 @@ function DateField({ value, onChange, className }) {
   );
 }
 
+/* themed MONTH picker — same look as DateField, but a Jan–Dec grid with year
+   nav. value/onChange use "YYYY-MM" strings (replaces the browser's native month
+   picker, which can't be styled to match). */
+function fmtMonthDisplay(ym) {
+  if (!ym) return "";
+  const [y, m] = ym.split("-").map(Number);
+  return `${CAL_MONTHS[m - 1]} ${y}`;
+}
+function MonthField({ value, onChange, className }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const base = value ? value.split("-").map(Number) : null;
+  const now = new Date();
+  const tY = now.getFullYear(), tM = now.getMonth();
+  const [yr, setYr] = useState(() => (base ? base[0] : tY));
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const openCal = () => { if (base) setYr(base[0]); setOpen(true); };
+  const pick = (m) => { onChange(`${yr}-${String(m + 1).padStart(2, "0")}`); setOpen(false); };
+  const isSel = (m) => base && base[0] === yr && base[1] - 1 === m;
+  const isThis = (m) => tY === yr && tM === m;
+  return (
+    <div className="city-ac" ref={ref}>
+      <button type="button" className={(className || "input") + " date-btn"} onClick={openCal}>
+        <span className={value ? "" : "picker-ph"}>{value ? fmtMonthDisplay(value) : "Select month…"}</span>
+        <svg className="date-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <rect x="3" y="4.5" width="18" height="17" rx="2.5" /><path d="M3 9h18M8 2.5v4M16 2.5v4" strokeLinecap="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="cal cal-month-pop">
+          <div className="cal-head">
+            <button type="button" className="cal-nav" title="Previous year" onClick={() => setYr((y) => y - 1)}>‹</button>
+            <span className="cal-title">{yr}</span>
+            <button type="button" className="cal-nav" title="Next year" onClick={() => setYr((y) => y + 1)}>›</button>
+          </div>
+          <div className="cal-grid cal-months">
+            {CAL_MONTHS.map((mn, m) => (
+              <button type="button" key={m}
+                className={"cal-day cal-month-cell" + (isSel(m) ? " sel" : "") + (isThis(m) ? " today" : "")}
+                onClick={() => pick(m)}>{mn.slice(0, 3)}</button>
+            ))}
+          </div>
+          <div className="cal-foot">
+            <button type="button" className="cal-link" onClick={() => { onChange(`${tY}-${String(tM + 1).padStart(2, "0")}`); setOpen(false); }}>This month</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* money input — shows thousand separators ("1,982,000") while editing.
    onChange emits a plain digit string ("1982000") or "" so callers can Number() it. */
 function MoneyInput({ value, onChange, className, placeholder }) {
@@ -654,7 +709,7 @@ function RawFields({ asset, onChange }) {
                 <span className="hint">one-off depreciation in a specific month — e.g. accident damage or impairment</span></h3>
               {adjustments.map((adj, i) => (
                 <div className="adj-row" key={i}>
-                  <input type="month" className="input mono" value={adj.month || ""} onChange={(e) => setAdj(i, { month: e.target.value })} />
+                  <MonthField className="input mono" value={adj.month || ""} onChange={(v) => setAdj(i, { month: v })} />
                   <MoneyInput className="input mono" placeholder="amount written down (USD)" value={adj.amount} onChange={(v) => setAdj(i, { amount: v === "" ? "" : Number(v) })} />
                   <input className="input" placeholder="reason (e.g. accident damage)" value={adj.note || ""} onChange={(e) => setAdj(i, { note: e.target.value })} />
                   <button className="icon-btn del" title="Remove this write-down" onClick={() => setAdjustments(adjustments.filter((_, j) => j !== i))}>🗑</button>
@@ -1033,6 +1088,16 @@ export default function Editor() {
               <EventLogger asset={draft} onAppend={appendEvent} />
               <Timeline asset={draft} onEditEvent={editEvent} onChangeType={changeEventType} onDeleteEvent={deleteEvent} onSave={save} onDiscard={discard} dirty={dirty} />
               <RawFields asset={draft} onChange={updateDraft} />
+
+              {/* second Save bar at the bottom so you don't have to scroll back up */}
+              <div className="ed-foot">
+                {dirty
+                  ? <span className="dim" style={{ fontSize: 12, color: "var(--wip)" }}>● unsaved changes</span>
+                  : <span className="dim" style={{ fontSize: 12 }}>All changes saved</span>}
+                <div className="spacer"></div>
+                {dirty && <button className="btn" onClick={discard} title="Throw away unsaved changes">Discard changes</button>}
+                <button className="btn btn-primary" disabled={!dirty || busy} onClick={save} style={!dirty || busy ? { opacity: .5 } : null}>{busy ? "Saving…" : "Save changes"}</button>
+              </div>
             </div>
           )}
         </main>

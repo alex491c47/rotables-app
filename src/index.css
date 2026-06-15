@@ -694,6 +694,13 @@ body.theme-light .select {
 .cal-foot { display: flex; justify-content: flex-end; margin-top: 8px; }
 .cal-link { background: none; border: none; color: var(--accent); cursor: pointer; font-size: 12px; font-family: inherit; padding: 2px 4px; }
 .cal-link:hover { text-decoration: underline; }
+/* month picker — Jan–Dec grid reusing the calendar styling */
+.cal-month-pop { width: 210px; }
+.cal-months { grid-template-columns: repeat(3, 1fr); gap: 4px; }
+.cal-month-cell { height: 34px; font-size: 12.5px; }
+/* bottom Save bar in the editor so you don't have to scroll up */
+.ed-foot { display: flex; align-items: center; gap: 8px; margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--border); }
+.ed-foot .spacer { flex: 1; }
 /* Editor readability — secondary text was too dim against the dark background */
 .editor-page { --text: #ecf2f9; --text2: #d6e1ee; --dim: #a9bcd0; --faint: #899db4; }
 body.theme-light .editor-page { --text: #0f2138; --text2: #324a66; --dim: #5d7088; --faint: #8497ad; }
