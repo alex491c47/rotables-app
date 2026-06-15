@@ -329,25 +329,30 @@ export class AssetGlobe {
 
     const tnow = (now - this.t0) / 1000;
     const showingAgg = !this.focusMarkers.length && this.aggregates.length > 0;
-    // Only permanent HUBS show as standing markers (a soft blurred dot, for
-    // orientation). A city the fleet merely passed through once — e.g. a lease
-    // destination — leaves NO residual dot once the asset has moved on; it just
-    // blends back into the globe. Currently-active cities get the bright aggregate
-    // bubbles drawn below.
-    const cityCol = T.cityDim || "150,180,210";
+    // Our hubs get a standing RED glowing dot (orientation home-bases). A city the
+    // fleet merely passed through once leaves NO residual dot once the asset has
+    // moved on. Currently-active cities get the bright aggregate bubbles below.
+    const hubCol = T.markerHub || "239,68,68";
+    const hubPulse = 0.5 + 0.5 * Math.sin(tnow * 2.0);
     for (const m of this.markers) {
-      if (m.kind !== "hub") continue;                        // skip one-off / inactive cities
-      if (showingAgg && this._aggLabels.has(m.label)) continue;
+      if (!m.hub) continue;
       const p = this._rotPoint(m.v);
-      if (p[2] <= 0.04) continue;
+      const front = p[2] > 0.02;
       const sp = this._project(p);
-      const a = 0.16 + p[2] * 0.18;
-      const rr = 2.4;
-      const rg = ctx.createRadialGradient(sp[0], sp[1], 0, sp[0], sp[1], rr);
-      rg.addColorStop(0, `rgba(${cityCol},${a.toFixed(3)})`);
-      rg.addColorStop(1, `rgba(${cityCol},0)`);
-      ctx.fillStyle = rg;
-      ctx.beginPath(); ctx.arc(sp[0], sp[1], rr, 0, Math.PI * 2); ctx.fill();
+      if (front) {
+        const hr = 7 + hubPulse * 3;
+        const rg = ctx.createRadialGradient(sp[0], sp[1], 0, sp[0], sp[1], hr);
+        rg.addColorStop(0, `rgba(${hubCol},0.5)`);
+        rg.addColorStop(1, `rgba(${hubCol},0)`);
+        ctx.fillStyle = rg;
+        ctx.beginPath(); ctx.arc(sp[0], sp[1], hr, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = `rgba(${hubCol},0.95)`;
+        ctx.beginPath(); ctx.arc(sp[0], sp[1], 2.6, 0, Math.PI * 2); ctx.fill();
+      } else if (p[2] > -0.4) {
+        // faint hint on the far side of the globe
+        ctx.fillStyle = `rgba(${hubCol},${(0.12 * (1 + p[2])).toFixed(3)})`;
+        ctx.beginPath(); ctx.arc(sp[0], sp[1], 2, 0, Math.PI * 2); ctx.fill();
+      }
     }
 
     if (showingAgg) this._drawAggregates(ctx, T, tnow);

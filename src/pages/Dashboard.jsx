@@ -17,6 +17,7 @@ const GLOBE_THEMES = {
     dot: "120,190,255", dotBack: "90,150,210", cityDim: "150,180,210",
     arcCustomer: "56,189,248", arcReturn: "163,230,53", arcMove: "148,163,184",
     markerLease: "56,189,248", markerWip: "250,204,21", markerReady: "52,211,153",
+    markerHub: "239,68,68",
     labelBg: "rgba(6,13,24,0.82)", labelText: "#e8f1fb",
   },
   light: {
@@ -25,9 +26,13 @@ const GLOBE_THEMES = {
     dot: "21,94,52", dotBack: "96,138,108", cityDim: "70,95,140",
     arcCustomer: "14,116,200", arcReturn: "77,124,15", arcMove: "100,116,139",
     markerLease: "14,116,200", markerWip: "180,120,0", markerReady: "13,148,90",
+    markerHub: "200,40,40",
     labelBg: "rgba(255,255,255,0.9)", labelText: "#0b1b30",
   },
 };
+
+// Our actual hubs — the only cities that keep a standing (red) marker on the globe.
+const HUB_NAMES = ["Baltimore", "Stockholm", "Singapore", "Xiamen"];
 
 const STATUS_META = {
   "WIP": { cls: "wip", dot: "#facc15" },
@@ -245,22 +250,14 @@ function GlobePanel({ globeRef, selected, stats, allAssets }) {
   useEffect(() => {
     globeRef.current = new AssetGlobe(canvasRef.current);
   }, []);
-  // mark only hubs and cities the fleet actually touches — CITIES now holds
-  // thousands of airports for the Editor dropdowns, far too many to draw
+  // Standing markers on the globe are ONLY our real hubs (the city `type` data
+  // mislabels many others as hubs, so we use this explicit list). Each is drawn as
+  // a red glowing dot; everywhere else is shown only while an asset is there now.
   useEffect(() => {
     if (!globeRef.current) return;
-    const names = new Set();
     const CITY = AssetStore.cityMap();
-    Object.keys(CITY).forEach((n) => { if (CITY[n].type === "hub") names.add(n); });
-    (allAssets || []).forEach((a) => {
-      if (a.location && AssetStore.cityMap()[a.location]) names.add(a.location);
-      (a.history || []).forEach((h) => {
-        if (h.from && AssetStore.cityMap()[h.from]) names.add(h.from);
-        if (h.to && AssetStore.cityMap()[h.to]) names.add(h.to);
-      });
-    });
-    const cities = [...names].map((name) => ({
-      lat: AssetStore.cityMap()[name].lat, lon: AssetStore.cityMap()[name].lon, label: name, kind: AssetStore.cityMap()[name].type,
+    const cities = HUB_NAMES.filter((n) => CITY[n]).map((name) => ({
+      lat: CITY[name].lat, lon: CITY[name].lon, label: name, hub: true,
     }));
     globeRef.current.setAllCityMarkers(cities);
   }, [allAssets]);
