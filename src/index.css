@@ -738,6 +738,10 @@ textarea.input { resize: vertical; min-height: 38px; }
 .tl-event.tl-adjust { padding: 8px 0; opacity: 0.9; }
 .tl-event.tl-adjust .tl-evt-name { font-size: 12px; font-weight: 500; }
 .tl-event.tl-adjust .tl-date { opacity: 0.8; }
+/* scheduled (future-dated) rate changes — dashed accent + tag */
+.tl-event.tl-scheduled { opacity: 0.78; }
+.tl-event.tl-scheduled .tl-cat { box-shadow: 0 0 0 2px var(--panel2), 0 0 0 3px var(--accent); background: transparent !important; }
+.tl-sched-tag { font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--accent); border: 1px dashed var(--accent); border-radius: 4px; padding: 1px 5px; }
 .icon-btn { border: none; background: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 3px 6px; border-radius: 6px; }
 .icon-btn:hover { color: var(--text); background: var(--row-hover); }
 .icon-btn.del:hover { color: #f87171; }

@@ -528,7 +528,6 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
   const [openIdx, setOpenIdx] = useState(null);
   const [msg, setMsg] = useState(null);
   const hist = asset.history;
-  const ev = hist.slice().reverse();
 
   const durationAt = (idx) => {
     const start = dMs(hist[idx].date);
@@ -536,19 +535,34 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
     return Math.max(0, Math.round((end - start) / 86400000));
   };
 
+  const NOW_ISO = new Date(NOW_MS).toISOString().slice(0, 10);
   const isRateChange = (e) => e && e.event === "Lease rate change";
   // A long-term lease keeps running across its rate-change events. For the start
   // row we therefore show the WHOLE span (until the lease actually ends, or today)
-  // and the TOTAL revenue earned across it — the escalations themselves render as
-  // small adjustments, not fresh dispatch rows. (Revenue is still recognised at the
-  // correct rate per segment under the hood; this only changes how it reads.)
+  // and the revenue from the rate changes ALREADY APPLIED — the escalations
+  // themselves render as small adjustments, not fresh dispatch rows. (Revenue is
+  // still recognised at the correct rate per segment under the hood.)
   const leaseStartDisplay = (idx) => {
     if (hist[idx].event !== "Long-term lease — start") return null;
-    let j = idx + 1, total = hist[idx].revenue || 0, changes = 0;
-    while (j < hist.length && isRateChange(hist[j])) { total += hist[j].revenue || 0; changes++; j++; }
+    let j = idx + 1, total = hist[idx].revenue || 0, applied = 0;
+    while (j < hist.length && isRateChange(hist[j])) {
+      if (hist[j].date <= NOW_ISO) { total += hist[j].revenue || 0; applied++; }  // only count changes already in effect
+      j++;
+    }
     const endMs = j < hist.length ? dMs(hist[j].date) : NOW_MS;
     const days = Math.max(0, Math.round((endMs - dMs(hist[idx].date)) / 86400000));
-    return { days, total, changes, ongoing: j >= hist.length };
+    return { days, total, changes: applied, ongoing: j >= hist.length };
+  };
+  // Rate changes dated in the FUTURE are scheduled — they render directly under
+  // their lease-start row instead of floating to the top of the (newest-first) list.
+  const futureRateChildrenOf = (startIdx) => {
+    const kids = [];
+    for (let j = startIdx + 1; j < hist.length; j++) {
+      const ne = hist[j];
+      if (ne.cat === "in" || ne.cat === "end") break;            // lease ended → stop
+      if (isRateChange(ne) && ne.date > NOW_ISO) kids.push(j);   // a scheduled escalation
+    }
+    return kids;
   };
 
   const tryEditDate = (idx, newDate) => {
@@ -571,6 +585,117 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
     onDeleteEvent(lastIdx);
   };
 
+  // Display order: newest-first, but each lease's FUTURE (scheduled) rate changes
+  // are pulled out and shown directly under their start row.
+  const scheduledChild = new Set();
+  hist.forEach((e, i) => { if (e.event === "Long-term lease — start") futureRateChildrenOf(i).forEach((k) => scheduledChild.add(k)); });
+  const order = [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (scheduledChild.has(i)) continue;     // rendered under its start row instead
+    order.push({ idx: i, scheduled: false });
+    if (hist[i].event === "Long-term lease — start") {
+      futureRateChildrenOf(i).forEach((k) => order.push({ idx: k, scheduled: true }));
+    }
+  }
+
+  const renderRow = ({ idx, scheduled }) => {
+    const e = hist[idx];
+    const isLast = idx === lastIdx;   // only the truly-last event is removable
+    const col = CAT_COLOR[e.cat] || CAT_COLOR.shop;
+    const rate = isRateChange(e);
+    const lease = leaseStartDisplay(idx);
+    let dur = durationAt(idx);
+    let ongoing = isLast;
+    let displayDays = e.leaseDays, displayRevenue = e.revenue;
+    if (lease) { dur = lease.days; ongoing = lease.ongoing; displayDays = null; displayRevenue = lease.total; }
+    const tId = typeIdOf(e);
+    return (
+      <div className={"tl-event" + (rate ? " tl-adjust" : "") + (scheduled ? " tl-scheduled" : "")} key={idx}>
+        <div className="tl-date">{e.date}
+          {!rate && <div className="tl-dur">({dayLabel(dur)}{ongoing ? ", ongoing" : ""})</div>}
+        </div>
+        <div className="tl-body">
+          <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{rate ? (scheduled ? "↳ Scheduled rate change" : "↳ Lease rate change") : e.event}
+            {e.contractType && !rate && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
+          <div className="tl-meta">
+            {rate ? (
+              <React.Fragment>
+                <span style={{ color: "var(--accent)" }}>monthly rate → <span className="mono">{fmtMoney(e.monthlyRevenue || 0)}</span>/mo</span>
+                {scheduled && <span className="tl-sched-tag">scheduled</span>}
+              </React.Fragment>
+            ) : (
+              <React.Fragment>
+                {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
+                {e.customer && <span>{e.customer}</span>}
+                {e.contractName && <span style={{ color: "var(--accent)" }} title="Contract">❝{e.contractName}❞</span>}
+                {e.pn && <span className="mono">{e.pn}</span>}
+                {displayDays ? <span>{displayDays} d</span> : null}
+                {displayRevenue ? <span style={{ color: "var(--ready)" }}>{fmtMoney(displayRevenue)}</span> : null}
+                {lease && lease.changes > 0 && <span className="dim">incl. {lease.changes} rate change{lease.changes > 1 ? "s" : ""}</span>}
+                <StatusPill status={e.status} />
+              </React.Fragment>
+            )}
+          </div>
+          {e.notes && <div className="tl-notes">{e.notes}</div>}
+          {openIdx === idx && (() => {
+            const eDef = EVENT_TYPES.find((t) => t.id === tId) || { fields: [] };
+            const fhas = (k) => eDef.fields.includes(k);
+            return (
+              <div className="tl-inline">
+                <label className="tl-city">Event type
+                  <Picker className="select" options={EVENT_TYPES_SORTED.map((t) => t.label)} value={(EVENT_TYPES.find((t) => t.id === tId) || {}).label || ""}
+                    onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setMsg(null); onChangeType(idx, t.id); } }} />
+                </label>
+                <label>Date
+                  <DateField className="input mono" value={e.date} onChange={(v) => tryEditDate(idx, v)} />
+                </label>
+                {fhas("to") && <label className="tl-city">{eDef.cat === "out" ? "Customer city" : "Location"}
+                  <CityInput className="input tl-wide" value={e.to || ""} placeholder="Type city…"
+                    onChange={(v) => onEditEvent(idx, { to: v })} />
+                </label>}
+                {fhas("dailyFee") && <label>Daily lease fee (USD) <MoneyInput className="input mono" value={e.dailyFee || 0}
+                  onChange={(v) => onEditEvent(idx, { dailyFee: Number(v) || 0 })} /></label>}
+                {fhas("monthlyRevenue") && <label>Monthly revenue (USD) <MoneyInput className="input mono" value={e.monthlyRevenue || 0}
+                  onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
+                {fhas("exchangeFee") && <label>Exchange fee (USD) <MoneyInput className="input mono" value={e.exchangeFee || 0}
+                  onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
+                {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
+                  onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
+                {fhas("salePrice") && <label>Sale price (USD) <MoneyInput className="input mono" value={e.salePrice || 0}
+                  onChange={(v) => onEditEvent(idx, { salePrice: Number(v) || 0 })} /></label>}
+                {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
+                  onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
+                {fhas("customer") && <label className="tl-city">Customer
+                  <SuggestInput className="input tl-wide" options={customerOptions()} showAll value={e.customer || ""}
+                    onChange={(v) => onEditEvent(idx, { customer: v || null })} placeholder="Customer…" /></label>}
+                {fhas("pn") && <label>P/N received <input className="input mono" defaultValue={e.pn || ""}
+                  onBlur={(ev2) => onEditEvent(idx, { pn: ev2.target.value || asset.partNumber })} /></label>}
+                {fhas("contractName") && <label className="tl-city">Contract name
+                  <SuggestInput className="input tl-wide" options={AssetStore.contractList()} showAll value={e.contractName || ""}
+                    onChange={(v) => onEditEvent(idx, { contractName: v || null })} placeholder="Contract…" /></label>}
+                {msg && msg.idx === idx && <div className={"tl-inline-msg " + (msg.ok ? "ok" : "err")}>{msg.text}</div>}
+              </div>
+            );
+          })()}
+        </div>
+        <div className="tl-actions">
+          <button className="icon-btn" title="Edit event" onClick={() => { setMsg(null); setOpenIdx(openIdx === idx ? null : idx); }}>✎</button>
+          {openIdx === idx && (
+            <React.Fragment>
+              <button className="icon-btn save" title="Save all changes" disabled={!dirty}
+                onClick={() => { if (dirty && onSave) { onSave(); setOpenIdx(null); } }}>💾</button>
+              <button className="icon-btn" title="Discard unsaved changes" disabled={!dirty}
+                onClick={() => { if (onDiscard) { onDiscard(); setOpenIdx(null); } }}>↩</button>
+            </React.Fragment>
+          )}
+          <button className="icon-btn del" title={isLast ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
+            disabled={!isLast}
+            onClick={() => { if (isLast) onDeleteEvent(idx); }}>🗑</button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="section">
       <h3 className="section-title">Movement timeline
@@ -579,101 +704,8 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
         {hist.length > 1 && <button className="btn btn-sm" onClick={undoLast} title="Remove the most recent event">↺ Undo last event</button>}
       </h3>
       <div className="timeline">
-        {ev.length === 0 && <div className="dim" style={{ fontSize: 13 }}>No events yet — log one above.</div>}
-        {ev.map((e, ri) => {
-          const idx = hist.length - 1 - ri;
-          const isLast = idx === lastIdx;   // only the truly-last event is removable
-          const col = CAT_COLOR[e.cat] || CAT_COLOR.shop;
-          const rate = isRateChange(e);
-          const lease = leaseStartDisplay(idx);
-          let dur = durationAt(idx);
-          let ongoing = isLast;
-          let displayDays = e.leaseDays, displayRevenue = e.revenue;
-          if (lease) { dur = lease.days; ongoing = lease.ongoing; displayDays = null; displayRevenue = lease.total; }
-          const tId = typeIdOf(e);
-          return (
-            <div className={"tl-event" + (rate ? " tl-adjust" : "")} key={idx}>
-              <div className="tl-date">{e.date}
-                {!rate && <div className="tl-dur">({dayLabel(dur)}{ongoing ? ", ongoing" : ""})</div>}
-              </div>
-              <div className="tl-body">
-                <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{rate ? "↳ Lease rate change" : e.event}
-                  {e.contractType && !rate && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
-                <div className="tl-meta">
-                  {rate ? (
-                    <span style={{ color: "var(--accent)" }}>monthly rate → <span className="mono">{fmtMoney(e.monthlyRevenue || 0)}</span>/mo</span>
-                  ) : (
-                    <React.Fragment>
-                      {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
-                      {e.customer && <span>{e.customer}</span>}
-                      {e.contractName && <span style={{ color: "var(--accent)" }} title="Contract">❝{e.contractName}❞</span>}
-                      {e.pn && <span className="mono">{e.pn}</span>}
-                      {displayDays ? <span>{displayDays} d</span> : null}
-                      {displayRevenue ? <span style={{ color: "var(--ready)" }}>{fmtMoney(displayRevenue)}</span> : null}
-                      {lease && lease.changes > 0 && <span className="dim">incl. {lease.changes} rate change{lease.changes > 1 ? "s" : ""}</span>}
-                      <StatusPill status={e.status} />
-                    </React.Fragment>
-                  )}
-                </div>
-                {e.notes && <div className="tl-notes">{e.notes}</div>}
-                {openIdx === idx && (() => {
-                  const eDef = EVENT_TYPES.find((t) => t.id === tId) || { fields: [] };
-                  const fhas = (k) => eDef.fields.includes(k);
-                  return (
-                    <div className="tl-inline">
-                      <label className="tl-city">Event type
-                        <Picker className="select" options={EVENT_TYPES_SORTED.map((t) => t.label)} value={(EVENT_TYPES.find((t) => t.id === tId) || {}).label || ""}
-                          onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setMsg(null); onChangeType(idx, t.id); } }} />
-                      </label>
-                      <label>Date
-                        <DateField className="input mono" value={e.date} onChange={(v) => tryEditDate(idx, v)} />
-                      </label>
-                      {fhas("to") && <label className="tl-city">{eDef.cat === "out" ? "Customer city" : "Location"}
-                        <CityInput className="input tl-wide" value={e.to || ""} placeholder="Type city…"
-                          onChange={(v) => onEditEvent(idx, { to: v })} />
-                      </label>}
-                      {fhas("dailyFee") && <label>Daily lease fee (USD) <MoneyInput className="input mono" value={e.dailyFee || 0}
-                        onChange={(v) => onEditEvent(idx, { dailyFee: Number(v) || 0 })} /></label>}
-                      {fhas("monthlyRevenue") && <label>Monthly revenue (USD) <MoneyInput className="input mono" value={e.monthlyRevenue || 0}
-                        onChange={(v) => onEditEvent(idx, { monthlyRevenue: Number(v) || 0 })} /></label>}
-                      {fhas("exchangeFee") && <label>Exchange fee (USD) <MoneyInput className="input mono" value={e.exchangeFee || 0}
-                        onChange={(v) => onEditEvent(idx, { exchangeFee: Number(v) || 0 })} /></label>}
-                      {fhas("recertFee") && <label>Recertification fee (USD) <MoneyInput className="input mono" value={e.recertFee || 0}
-                        onChange={(v) => onEditEvent(idx, { recertFee: Number(v) || 0 })} /></label>}
-                      {fhas("salePrice") && <label>Sale price (USD) <MoneyInput className="input mono" value={e.salePrice || 0}
-                        onChange={(v) => onEditEvent(idx, { salePrice: Number(v) || 0 })} /></label>}
-                      {fhas("contractYears") && <label>Contract years <input type="number" inputMode="numeric" className="input mono" defaultValue={e.contractYears || ""}
-                        onBlur={(ev2) => onEditEvent(idx, { contractYears: ev2.target.value === "" ? null : Number(ev2.target.value) })} /></label>}
-                      {fhas("customer") && <label className="tl-city">Customer
-                        <SuggestInput className="input tl-wide" options={customerOptions()} showAll value={e.customer || ""}
-                          onChange={(v) => onEditEvent(idx, { customer: v || null })} placeholder="Customer…" /></label>}
-                      {fhas("pn") && <label>P/N received <input className="input mono" defaultValue={e.pn || ""}
-                        onBlur={(ev2) => onEditEvent(idx, { pn: ev2.target.value || asset.partNumber })} /></label>}
-                      {fhas("contractName") && <label className="tl-city">Contract name
-                        <SuggestInput className="input tl-wide" options={AssetStore.contractList()} showAll value={e.contractName || ""}
-                          onChange={(v) => onEditEvent(idx, { contractName: v || null })} placeholder="Contract…" /></label>}
-                      {msg && msg.idx === idx && <div className={"tl-inline-msg " + (msg.ok ? "ok" : "err")}>{msg.text}</div>}
-                    </div>
-                  );
-                })()}
-              </div>
-              <div className="tl-actions">
-                <button className="icon-btn" title="Edit event" onClick={() => { setMsg(null); setOpenIdx(openIdx === idx ? null : idx); }}>✎</button>
-                {openIdx === idx && (
-                  <React.Fragment>
-                    <button className="icon-btn save" title="Save all changes" disabled={!dirty}
-                      onClick={() => { if (dirty && onSave) { onSave(); setOpenIdx(null); } }}>💾</button>
-                    <button className="icon-btn" title="Discard unsaved changes" disabled={!dirty}
-                      onClick={() => { if (onDiscard) { onDiscard(); setOpenIdx(null); } }}>↩</button>
-                  </React.Fragment>
-                )}
-                <button className="icon-btn del" title={isLast ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
-                  disabled={!isLast}
-                  onClick={() => { if (isLast) onDeleteEvent(idx); }}>🗑</button>
-              </div>
-            </div>
-          );
-        })}
+        {order.length === 0 && <div className="dim" style={{ fontSize: 13 }}>No events yet — log one above.</div>}
+        {order.map((o) => renderRow(o))}
       </div>
     </div>
   );
