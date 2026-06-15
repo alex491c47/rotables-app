@@ -329,14 +329,23 @@ export class AssetGlobe {
 
     const tnow = (now - this.t0) / 1000;
     const showingAgg = !this.focusMarkers.length && this.aggregates.length > 0;
+    // Inactive cities (hubs + anywhere the fleet has ever been, but with no asset
+    // there right now) render as a soft BLURRED dot that melts into the globe — so a
+    // long history of visited locations stays as quiet texture, not a field of loud
+    // markers. Only currently-active cities get the bright aggregate bubbles below.
+    const cityCol = T.cityDim || "150,180,210";
     for (const m of this.markers) {
       if (showingAgg && this._aggLabels.has(m.label)) continue;
       const p = this._rotPoint(m.v);
       if (p[2] <= 0.04) continue;
       const sp = this._project(p);
-      const a = 0.18 + p[2] * 0.22;
-      ctx.fillStyle = `rgba(${T.cityDim || "150,180,210"},${a.toFixed(3)})`;
-      ctx.beginPath(); ctx.arc(sp[0], sp[1], 1.6, 0, Math.PI * 2); ctx.fill();
+      const a = 0.16 + p[2] * 0.18;
+      const rr = 2.4;
+      const rg = ctx.createRadialGradient(sp[0], sp[1], 0, sp[0], sp[1], rr);
+      rg.addColorStop(0, `rgba(${cityCol},${a.toFixed(3)})`);
+      rg.addColorStop(1, `rgba(${cityCol},0)`);
+      ctx.fillStyle = rg;
+      ctx.beginPath(); ctx.arc(sp[0], sp[1], rr, 0, Math.PI * 2); ctx.fill();
     }
 
     if (showingAgg) this._drawAggregates(ctx, T, tnow);
