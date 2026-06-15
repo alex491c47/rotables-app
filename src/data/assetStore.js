@@ -14,6 +14,7 @@ import { CITIES, COMMON_CUSTOMERS } from './mockData';
 
 const DAY = 86400000;
 const TODAY_MS = Math.max(Date.parse("2026-06-04T00:00:00Z"), Date.now());
+const TODAY_ISO = new Date(TODAY_MS).toISOString().slice(0, 10);
 const dateMs = (d) => Date.parse(d + "T00:00:00Z");
 
 export const AssetCalc = {
@@ -24,7 +25,11 @@ export const AssetCalc = {
     if (!this.isRated(e)) return e.leaseDays != null ? e.leaseDays : null;
     if (e.cat !== "out" || e.contractType === "Exchange") return null;
     const start = dateMs(e.date);
-    const end = i + 1 < hist.length ? dateMs(hist[i + 1].date) : TODAY_MS;
+    const rawEnd = i + 1 < hist.length ? dateMs(hist[i + 1].date) : TODAY_MS;
+    // never recognise days/revenue that haven't happened yet — cap at today. A
+    // future-dated segment (e.g. a scheduled rate change) therefore earns nothing
+    // until its date arrives, and the current segment only counts days elapsed.
+    const end = Math.min(rawEnd, TODAY_MS);
     return Math.max(0, Math.round((end - start) / DAY));
   },
   revenue(e, days) {
@@ -58,34 +63,38 @@ function recompute(a) {
   });
   a.initialPartNumber = a.initialPartNumber || (ev[0] && ev[0].pn) || a.partNumber || "";
   if (ev.length) {
-    const last = ev[ev.length - 1];
-    a.status = last.status || a.status;
-    a.lastUpdated = last.date;
-    a.location = last.to || last.from || a.location;
-    for (let i = ev.length - 1; i >= 0; i--) { if (ev[i].pn) { a.partNumber = ev[i].pn; break; } }
+    // Current state reflects only events that have actually HAPPENED — a scheduled
+    // future event (e.g. a future-dated rate change) must not change today's
+    // status, location, current rate or retire the asset early.
+    let curIdx = ev.length - 1;
+    for (let i = ev.length - 1; i >= 0; i--) { if (ev[i].date <= TODAY_ISO) { curIdx = i; break; } }
+    const cur = ev[curIdx];
+    a.status = cur.status || a.status;
+    a.lastUpdated = cur.date;
+    a.location = cur.to || cur.from || a.location;
+    for (let i = curIdx; i >= 0; i--) { if (ev[i].pn) { a.partNumber = ev[i].pn; break; } }
     a.previousStatus = null;
-    for (let i = ev.length - 2; i >= 0; i--) {
+    for (let i = curIdx - 1; i >= 0; i--) {
       if (ev[i].status && ev[i].status !== a.status) { a.previousStatus = ev[i].status; break; }
     }
     if (a.status === "Out on lease") {
-      for (let i = ev.length - 1; i >= 0; i--) {
+      for (let i = curIdx; i >= 0; i--) {
         if (ev[i].cat === "out") {
           a.engagementType = ev[i].contractType || null;
           a.contractYears = ev[i].contractYears || null;
           a.customer = ev[i].customer || null;
-          a.monthlyRevenue = ev[i].monthlyRevenue ?? null;   // current long-term monthly fee
+          a.monthlyRevenue = ev[i].monthlyRevenue ?? null;   // current long-term monthly fee (rate in effect today)
           break;
         }
       }
     } else { a.engagementType = null; a.contractYears = null; a.monthlyRevenue = null; }
+    a.retired = cur.cat === "end";
+    a.retiredReason = a.retired ? cur.event : null;
+    a.retiredDate = a.retired ? cur.date : null;
   }
   a.totalRevenue = ev.reduce((s, e) => s + (e.revenue || 0), 0);
   a.daysOnLease = ev.reduce((s, e) => s + (e.leaseDays || 0), 0);
   a.pnChanged = !!a.partNumber && a.partNumber !== a.initialPartNumber;
-  const lastEv = ev[ev.length - 1];
-  a.retired = !!(lastEv && lastEv.cat === "end");
-  a.retiredReason = a.retired ? lastEv.event : null;
-  a.retiredDate = a.retired ? lastEv.date : null;
   return a;
 }
 

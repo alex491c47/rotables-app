@@ -313,7 +313,10 @@ function GlobePanel({ globeRef, selected, stats, allAssets }) {
 }
 
 function HistoryTimeline({ asset }) {
-  const rows = asset.history.slice().reverse();
+  // A scheduled (future-dated) lease rate change hasn't happened yet — it earns no
+  // revenue and isn't part of the movement history, so keep it out of the register.
+  const NOW_ISO = new Date(AssetCalc.TODAY_MS).toISOString().slice(0, 10);
+  const rows = asset.history.filter((h) => !(h.event === "Lease rate change" && h.date > NOW_ISO)).slice().reverse();
   return (
     <div className="history">
       <div className="history-scroll">
