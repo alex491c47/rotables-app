@@ -87,7 +87,7 @@ export function BarChart({ data, height = 220, fmt = fmtUSD, accent, highlightId
               {h > 5 && (
                 <text x={cx(i)} y={y - 7} textAnchor="middle"
                   fontSize="10" fill="var(--text)"
-                  fontFamily="'IBM Plex Mono',monospace">{fmtBarM(d.value)}</text>
+                  fontFamily="'IBM Plex Mono',monospace">{fmt(d.value)}</text>
               )}
               <text x={cx(i)} y={height - 9} textAnchor="middle"
                 fontSize="10.5" fill="var(--dim)" fontFamily="'IBM Plex Sans',sans-serif">{d.label}</text>
@@ -193,7 +193,7 @@ export function StackBar({ rows, height = 26 }) {
 
 export function Donut({ data, size = 150, thickness = 26, centerLabel, centerValue }) {
   const total = data.reduce((s, d) => s + d.value, 0) || 1;
-  const pad = 40;                 // room around the ring for outside labels + leader lines
+  const pad = 62;                 // room around the ring for outside labels + leader lines
   const box = size + pad * 2;
   const r = (size - thickness) / 2;
   const c = box / 2;              // centre of the padded canvas
@@ -203,7 +203,7 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
   const [hover, setHover] = useState(null);
   return (
     <div className="donut-wrap">
-      <svg width={box} height={box} viewBox={`0 0 ${box} ${box}`}>
+      <svg width={box} height={box} viewBox={`0 0 ${box} ${box}`} style={{ overflow: "visible" }}>
         <circle cx={c} cy={c} r={r} fill="none" stroke="var(--border)" strokeWidth={thickness} />
         {data.map((d, i) => {
           const frac = d.value / total;
@@ -232,7 +232,7 @@ export function Donut({ data, size = 150, thickness = 26, centerLabel, centerVal
             if (frac < 0.03) return null;
             const cos = Math.cos(mid), sin = Math.sin(mid);
             const x1 = c + outer * cos, y1 = c + outer * sin;       // ring edge
-            const x2 = c + (outer + 22) * cos, y2 = c + (outer + 22) * sin; // elbow
+            const x2 = c + (outer + 18) * cos, y2 = c + (outer + 18) * sin; // elbow
             const right = cos >= 0;
             const lx = x2 + (right ? 5 : -5);
             return (

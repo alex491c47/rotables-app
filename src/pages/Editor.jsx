@@ -332,12 +332,12 @@ function Picker({ value, onChange, options, placeholder, className }) {
 }
 
 function EventLogger({ asset, onAppend }) {
-  const [typeId, setTypeId] = usePersistent("evtType", "pool");
+  const [typeId, setTypeId] = usePersistent("evtType", "");   // "" = nothing chosen yet — user must pick
   // only the next steps that make sense from the asset's current state, alphabetical
   const availTypes = useMemo(() =>
     EVENT_TYPES.filter((t) => allowedEventIds(asset).includes(t.id)).sort((a, b) => a.label.localeCompare(b.label)),
     [asset.status, asset.engagementType, asset.history]);
-  const def = availTypes.find((t) => t.id === typeId) || availTypes[0] || EVENT_TYPES[0];
+  const def = availTypes.find((t) => t.id === typeId) || null;   // null until an event is selected
   const makeBlank = () => ({ date: today(), to: "", customer: "", dailyFee: "", monthlyRevenue: "", contractYears: "", exchangeFee: "", pn: "", recertFee: "", salePrice: "", contractName: "", notes: "" });
   const [f, setF] = usePersistent("evtForm", makeBlank);
   const [errs, setErrs] = useState({});
@@ -347,17 +347,18 @@ function EventLogger({ asset, onAppend }) {
   const [fOwner, setFOwner] = usePersistent("evtFormOwner", null);
   useEffect(() => {
     if (fOwner !== asset.assetNumber) {
-      setF(makeBlank()); setErrs({}); setTypeId("pool"); setFOwner(asset.assetNumber);
+      setF(makeBlank()); setErrs({}); setTypeId(""); setFOwner(asset.assetNumber);
     }
   }, [asset.assetNumber]);
-  // if the selected type isn't valid for the asset's current state, fall back to
-  // the first available next step
-  useEffect(() => { if (availTypes.length && !availTypes.some((t) => t.id === typeId)) setTypeId(availTypes[0].id); }, [availTypes, typeId]);
+  // if the chosen type is no longer valid for the asset's current state, clear the
+  // selection so the user explicitly picks again (we never auto-pick one for them)
+  useEffect(() => { if (typeId && !availTypes.some((t) => t.id === typeId)) setTypeId(""); }, [availTypes, typeId]);
   const set = (k, v) => setF((s) => ({ ...s, [k]: v }));
-  const has = (k) => def.fields.includes(k);
-  const isLease = def.cat === "out" && def.contractType !== "Exchange";
+  const has = (k) => !!def && def.fields.includes(k);
+  const isLease = !!def && def.cat === "out" && def.contractType !== "Exchange";
 
   const submit = () => {
+    if (!def) return;
     const miss = {};
     def.req.forEach((k) => {
       const v = f[k];
@@ -418,7 +419,7 @@ function EventLogger({ asset, onAppend }) {
       <h3 className="section-title">Log an event <span className="hint">appends to the timeline & recalculates the asset</span></h3>
       <div className="grid3">
         <Field label="Event type" span>
-          <Picker className="select" options={availTypes.map((t) => t.label)} value={def.label}
+          <Picker className="select" options={availTypes.map((t) => t.label)} value={def ? def.label : ""} placeholder="Select an event…"
             onChange={(label) => { const t = EVENT_TYPES.find((x) => x.label === label); if (t) { setTypeId(t.id); setErrs({});
               if (t.id === "short2exch" && asset.customer) set("customer", asset.customer);
               if (t.id === "ltlprog") set("to", (currentLeaseTerms(asset.history).to) || asset.location || "");   // customer + fee carry over; default back to the customer's city
@@ -444,13 +445,15 @@ function EventLogger({ asset, onAppend }) {
           <SuggestInput className="input" options={AssetStore.contractList()} showAll value={f.contractName} onChange={(v) => set("contractName", v)} placeholder="Select or type a contract…" /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
       </div>
-      {(isLease || def.contractType === "Exchange") && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
+      {(isLease || (def && def.contractType === "Exchange")) && <p className="field-hint" style={{ marginTop: 10 }}>Days leased are calculated automatically — from this date until the next logged event (or today). No need to enter them.</p>}
       <div className="row-actions" style={{ marginTop: 14 }}>
-        <span className="dim" style={{ fontSize: 12, alignSelf: "center" }}>New status → <b style={{ color: STATUS_META[def.status].c }}>{def.status}</b></span>
+        {def
+          ? <span className="dim" style={{ fontSize: 12, alignSelf: "center" }}>New status → <b style={{ color: STATUS_META[def.status].c }}>{def.status}</b></span>
+          : <span className="dim" style={{ fontSize: 12, alignSelf: "center" }}>Choose an event above to continue.</span>}
         {Object.keys(errs).length > 0 && <span className="form-err" style={{ marginLeft: 14 }}>{errs._city ? "City not recognised — pick it from the list or use “+ Add a new location”." : "Fill the required fields."}</span>}
         <div className="spacer"></div>
         <button className="btn" onClick={() => { setF(makeBlank()); setErrs({}); }}>Clear</button>
-        <button className="btn btn-primary" onClick={submit}>+ Append event</button>
+        <button className="btn btn-primary" onClick={submit} disabled={!def}>+ Append event</button>
       </div>
       {showLoc && <NewLocationModal onClose={() => { setShowLoc(false); clearSS("newLoc"); }}
         onCreate={async (loc) => { await AssetStore.addCity(loc); set("to", loc.name); setShowLoc(false); clearSS("newLoc"); }} />}

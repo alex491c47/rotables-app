@@ -10,7 +10,7 @@ export default function TopNav() {
     <nav className="topnav">
       <NavLink to="/" end>Asset Register</NavLink>
       <NavLink to="/analytics">Analytics</NavLink>
-      <NavLink to="/customers">Customers</NavLink>
+      {/* Customers view parked for now — route still lives at /customers, just not surfaced in the nav */}
       {canEdit && <NavLink to="/editor">Editor</NavLink>}
       {isAdmin && <NavLink to="/admin">Users</NavLink>}
     </nav>

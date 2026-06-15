@@ -212,14 +212,41 @@ export function buildAN(rawAssets) {
                                                                     mRev[k] = (mRev[k] || 0) + e.revenue;
                                                        }
                                             }
-                                            if (isOut) {
-                                                       const utilDays = isEx ? (a.nacelle === "Thrust Reverser" ? 122 : 61) : (e.leaseDays || 0);
-                                                       spreadDays(e.date, utilDays).forEach((s) => {
-                                                                    const k = ymKey(s.y, s.m); mUtil[k] = (mUtil[k] || 0) + s.days;
-                                                                    if (s.y < yMin) yMin = s.y; if (s.y > yMax) yMax = s.y;
-                                                       });
-                                            }
                                    });
+
+                                   // Utilisation = every day the asset is OUT OF THE POOL, from when it
+                                   // leaves (a lease/exchange "out" event) until it is back available in the
+                                   // pool ("Ready to ship"). The clock keeps running through the whole
+                                   // round-trip — time on lease, exchange turnaround, shop/overhaul and
+                                   // recertification all count, because the unit isn't earning in the pool.
+                                   // A new lease before it ever returns simply keeps the clock running.
+                                   const IN_POOL = "Ready to ship";   // the only "available in the pool" status
+                                   const addUtil = (fromISO, toMs) => {
+                                            const startMs = new Date(fromISO + "T00:00:00Z").getTime();
+                                            const days = Math.max(0, Math.round((toMs - startMs) / DAY));
+                                            if (!days) return;
+                                            spreadDays(fromISO, days).forEach((s) => {
+                                                       const k = ymKey(s.y, s.m); mUtil[k] = (mUtil[k] || 0) + s.days;
+                                                       if (s.y < yMin) yMin = s.y; if (s.y > yMax) yMax = s.y;
+                                            });
+                                   };
+                                   let outStart = null;   // ISO date the asset last left the pool, or null if it's in the pool
+                                   for (let i = 0; i < a.history.length; i++) {
+                                            const e = a.history[i];
+                                            if (e.cat === "end") {                          // retired / sold / returned — stop the clock
+                                                       if (outStart) { addUtil(outStart, new Date(e.date + "T00:00:00Z").getTime()); outStart = null; }
+                                                       break;
+                                            }
+                                            if (e.status === IN_POOL) {                      // back available in the pool — close the span
+                                                       if (outStart) { addUtil(outStart, new Date(e.date + "T00:00:00Z").getTime()); outStart = null; }
+                                            } else if (e.cat === "out") {                    // leaving the pool — start the clock if not already out
+                                                       if (!outStart) outStart = e.date;
+                                            }
+                                            // any other status (WIP / recertification / exchange-core-in) while already
+                                            // out keeps the clock running; if it happens with no prior "out" (e.g. a
+                                            // brand-new unit's first induction) it doesn't count as utilisation.
+                                   }
+                                   if (outStart) addUtil(outStart, TODAY.getTime());   // still out today
 
                                    return {
                                             ref: a,

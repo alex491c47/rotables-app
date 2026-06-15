@@ -339,11 +339,12 @@ export default function Analytics() {
     });
   }, [AN, assets, year]);
 
-  // NBV chart uses ALL assets (unfiltered) so the chart always shows the full picture
+  // NBV chart follows the active filters (engine type / ownership / single asset),
+  // grouped by engine type — so it shows the same slice of the fleet as the rest.
   const depRows = useMemo(() => {
     return ALL_TYPES.map((t) => {
       let nbvSum = 0, dep = 0;
-      AN.assets.filter((a) => a.aircraftType === t && AN.activeInPeriod(a, period)).forEach((a) => {
+      assets.filter((a) => a.aircraftType === t && AN.activeInPeriod(a, period)).forEach((a) => {
         const d = AN.nbvAsOf(a, period); nbvSum += d.nbv; dep += d.accumDep;
       });
       if (!nbvSum && !dep) return null;
@@ -352,7 +353,7 @@ export default function Analytics() {
         { name: "Accum. depreciation", value: dep, color: "var(--border2)" },
       ] };
     }).filter(Boolean);
-  }, [AN, period, ALL_TYPES, TYPE_COLOR]);
+  }, [AN, assets, period, ALL_TYPES, TYPE_COLOR]);
 
   const rows = useMemo(() => {
     // only assets that were online during the selected period appear
@@ -511,7 +512,7 @@ export default function Analytics() {
             <Legend items={Object.keys(OWN_COLOR).filter((o) => agg.byOwn[o]).map((o) => ({ name: o, color: OWN_COLOR[o], value: agg.byOwn[o] }))} />
           </Card>
 
-          <Card title="Net book value vs depreciation" sub="by engine type — all assets">
+          <Card title="Net book value vs depreciation" sub={(types.size || owns.size || selectedAsset) ? "by engine type — filtered" : "by engine type"}>
             <StackBar rows={depRows} />
             <Legend items={[{ name: "Net book value", color: "var(--accent)" }, { name: "Accumulated depreciation", color: "var(--border2)" }]} />
           </Card>
@@ -559,8 +560,9 @@ export default function Analytics() {
 
         <p className="assumptions">
           Assumptions — CLP per type/nacelle (2026), straight-line depreciation (Owned 25 yr→0; Long-term lease 40% CLP, 10 yr→0;
-          Short-term leased TRs off balance-sheet). Utilisation: lease-days, with exchanges credited 1/6 yr (Thrust Reverser 1/3 yr);
-          portfolio average is NBV-weighted.
+          Short-term leased TRs off balance-sheet). Utilisation: every day a unit is out of the pool —
+          lease time, exchange turnaround, shop/overhaul and recertification all count — measured against its
+          in-service days; portfolio average is NBV-weighted.
         </p>
       </main>
     </div>
