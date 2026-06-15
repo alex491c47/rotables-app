@@ -536,6 +536,21 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
     return Math.max(0, Math.round((end - start) / 86400000));
   };
 
+  const isRateChange = (e) => e && e.event === "Lease rate change";
+  // A long-term lease keeps running across its rate-change events. For the start
+  // row we therefore show the WHOLE span (until the lease actually ends, or today)
+  // and the TOTAL revenue earned across it — the escalations themselves render as
+  // small adjustments, not fresh dispatch rows. (Revenue is still recognised at the
+  // correct rate per segment under the hood; this only changes how it reads.)
+  const leaseStartDisplay = (idx) => {
+    if (hist[idx].event !== "Long-term lease — start") return null;
+    let j = idx + 1, total = hist[idx].revenue || 0, changes = 0;
+    while (j < hist.length && isRateChange(hist[j])) { total += hist[j].revenue || 0; changes++; j++; }
+    const endMs = j < hist.length ? dMs(hist[j].date) : NOW_MS;
+    const days = Math.max(0, Math.round((endMs - dMs(hist[idx].date)) / 86400000));
+    return { days, total, changes, ongoing: j >= hist.length };
+  };
+
   const tryEditDate = (idx, newDate) => {
     if (!newDate) return;
     const prev = hist[idx - 1], next = hist[idx + 1];
@@ -567,26 +582,38 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
         {ev.length === 0 && <div className="dim" style={{ fontSize: 13 }}>No events yet — log one above.</div>}
         {ev.map((e, ri) => {
           const idx = hist.length - 1 - ri;
+          const isLast = idx === lastIdx;   // only the truly-last event is removable
           const col = CAT_COLOR[e.cat] || CAT_COLOR.shop;
-          const dur = durationAt(idx);
-          const ongoing = idx === lastIdx;
+          const rate = isRateChange(e);
+          const lease = leaseStartDisplay(idx);
+          let dur = durationAt(idx);
+          let ongoing = isLast;
+          let displayDays = e.leaseDays, displayRevenue = e.revenue;
+          if (lease) { dur = lease.days; ongoing = lease.ongoing; displayDays = null; displayRevenue = lease.total; }
           const tId = typeIdOf(e);
           return (
-            <div className="tl-event" key={idx}>
+            <div className={"tl-event" + (rate ? " tl-adjust" : "")} key={idx}>
               <div className="tl-date">{e.date}
-                <div className="tl-dur">({dayLabel(dur)}{ongoing ? ", ongoing" : ""})</div>
+                {!rate && <div className="tl-dur">({dayLabel(dur)}{ongoing ? ", ongoing" : ""})</div>}
               </div>
               <div className="tl-body">
-                <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{e.event}
-                  {e.contractType && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
+                <div className="tl-evt-name"><span className="tl-cat" style={{ background: col }}></span>{rate ? "↳ Lease rate change" : e.event}
+                  {e.contractType && !rate && <span className="dim" style={{ fontWeight: 400, fontSize: 11 }}>· {e.contractType}{e.contractYears ? ` (${e.contractYears} yr)` : ""}</span>}</div>
                 <div className="tl-meta">
-                  {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
-                  {e.customer && <span>{e.customer}</span>}
-                  {e.contractName && <span style={{ color: "var(--accent)" }} title="Contract">❝{e.contractName}❞</span>}
-                  {e.pn && <span className="mono">{e.pn}</span>}
-                  {e.leaseDays ? <span>{e.leaseDays} d</span> : null}
-                  {e.revenue ? <span style={{ color: "var(--ready)" }}>{fmtMoney(e.revenue)}</span> : null}
-                  <StatusPill status={e.status} />
+                  {rate ? (
+                    <span style={{ color: "var(--accent)" }}>monthly rate → <span className="mono">{fmtMoney(e.monthlyRevenue || 0)}</span>/mo</span>
+                  ) : (
+                    <React.Fragment>
+                      {(e.source || e.from || e.to) && <span>{e.source || e.from || "facility"} → <span className="mono">{e.to || e.from || asset.location}</span></span>}
+                      {e.customer && <span>{e.customer}</span>}
+                      {e.contractName && <span style={{ color: "var(--accent)" }} title="Contract">❝{e.contractName}❞</span>}
+                      {e.pn && <span className="mono">{e.pn}</span>}
+                      {displayDays ? <span>{displayDays} d</span> : null}
+                      {displayRevenue ? <span style={{ color: "var(--ready)" }}>{fmtMoney(displayRevenue)}</span> : null}
+                      {lease && lease.changes > 0 && <span className="dim">incl. {lease.changes} rate change{lease.changes > 1 ? "s" : ""}</span>}
+                      <StatusPill status={e.status} />
+                    </React.Fragment>
+                  )}
                 </div>
                 {e.notes && <div className="tl-notes">{e.notes}</div>}
                 {openIdx === idx && (() => {
@@ -640,9 +667,9 @@ function Timeline({ asset, onEditEvent, onChangeType, onDeleteEvent, onSave, onD
                       onClick={() => { if (onDiscard) { onDiscard(); setOpenIdx(null); } }}>↩</button>
                   </React.Fragment>
                 )}
-                <button className="icon-btn del" title={ongoing ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
-                  disabled={!ongoing}
-                  onClick={() => { if (ongoing) onDeleteEvent(idx); }}>🗑</button>
+                <button className="icon-btn del" title={isLast ? "Remove event" : "Only the most recent event can be removed — remove later events first to avoid a gap in the asset's history"}
+                  disabled={!isLast}
+                  onClick={() => { if (isLast) onDeleteEvent(idx); }}>🗑</button>
               </div>
             </div>
           );

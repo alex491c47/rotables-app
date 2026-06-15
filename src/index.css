@@ -734,6 +734,10 @@ textarea.input { resize: vertical; min-height: 38px; }
 .tl-inline-msg.err { color: #f87171; }
 .tl-inline-msg.ok { color: var(--faint); }
 .tl-dur { font-size: 10.5px; color: var(--faint); margin-top: 3px; font-family: "IBM Plex Mono", monospace; }
+/* rate-change adjustments read as sub-entries of the lease, not fresh dispatches */
+.tl-event.tl-adjust { padding: 8px 0; opacity: 0.9; }
+.tl-event.tl-adjust .tl-evt-name { font-size: 12px; font-weight: 500; }
+.tl-event.tl-adjust .tl-date { opacity: 0.8; }
 .icon-btn { border: none; background: none; color: var(--dim); cursor: pointer; font-size: 14px; padding: 3px 6px; border-radius: 6px; }
 .icon-btn:hover { color: var(--text); background: var(--row-hover); }
 .icon-btn.del:hover { color: #f87171; }
