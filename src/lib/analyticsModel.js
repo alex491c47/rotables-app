@@ -390,15 +390,24 @@ export function buildAN(rawAssets) {
          assets, years, AN_CLP, LEASE_IN_PCT,
          revInPeriod, utilDaysInPeriod, utilFrac, availDays, leaseInCost, monthlyRev, monthlyUtilFrac,
          asOfMs, inServiceBy, activeInPeriod, nbvAsOf, removalsInPeriod, dim, ymKey,
+         // Portfolio utilisation is weighted by CLP (catalogue list price), not NBV:
+         // CLP is a stable measure of an asset's size, so a fully-depreciated unit
+         // that's still on lease keeps its proper weight instead of dropping to zero.
+         // Short-term leased-in units are off-balance-sheet pass-through and excluded.
          weightedUtil(list, period) {
                   let wsum = 0, num = 0;
-                  list.forEach((a) => { const w = nbvAsOf(a, period).nbv; if (w > 0) { wsum += w; num += utilFrac(a, period) * w; } });
+                  list.forEach((a) => {
+                           if (a.ownership === "Short-term lease") return;
+                           if (!activeInPeriod(a, period)) return;   // not online this period (retired before / not yet in service)
+                           const w = a.clp;
+                           if (w > 0) { wsum += w; num += utilFrac(a, period) * w; }
+                  });
                   if (wsum > 0) return num / wsum;
-                  const active = list.filter((a) => inServiceBy(a, period));
+                  const active = list.filter((a) => a.ownership !== "Short-term lease" && inServiceBy(a, period));
                   if (!active.length) return 0;
                   let s = 0; active.forEach((a) => (s += utilFrac(a, period))); return s / active.length;
          },
-         // Projected utilisation for a FUTURE month: the NBV-weighted share of the
+         // Projected utilisation for a FUTURE month: the CLP-weighted share of the
          // fleet expected to still be on a long-term lease then, based on each live
          // lease's start date + contract length. (We don't speculate on short-term or
          // exchange work, so this is the contracted baseline.)
@@ -406,7 +415,9 @@ export function buildAN(rawAssets) {
                   const monthStartMs = Date.UTC(year, month, 1);
                   let wsum = 0, num = 0;
                   list.forEach((a) => {
-                           const w = nbvAsOf(a, { year, month }).nbv;
+                           if (a.ownership === "Short-term lease") return;   // off-balance-sheet pass-through
+                           if (retiredMs(a) <= monthStartMs) return;          // retired by then — out of the fleet
+                           const w = a.clp;
                            if (w <= 0) return;
                            wsum += w;
                            const ref = a.ref;

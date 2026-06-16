@@ -473,7 +473,7 @@ export default function Analytics() {
         <div className="kpi-row">
           <KPI label={`Revenue · ${periodLabel}`} value={<AnimatedNumber value={agg.revenue} format={fmtUSD} />} tone="rev"
             sub={agg.leaseIn > 0 ? `net ${fmtUSD(agg.revenue - agg.leaseIn)} after lease-in` : `${agg.count} assets`} />
-          <KPI label="Avg utilisation" value={<AnimatedNumber value={agg.util} format={(f) => (f * 100).toFixed(1) + "%"} />} tone="lease" sub="NBV-weighted" />
+          <KPI label="Avg utilisation" value={<AnimatedNumber value={agg.util} format={(f) => (f * 100).toFixed(1) + "%"} />} tone="lease" sub="CLP-weighted" />
           <KPI label="Net book value" value={<AnimatedNumber value={agg.nbv} format={fmtUSD} />} sub={`of ${fmtUSD(agg.clp)} CLP`} />
           <KPI label="Accum. depreciation" value={<AnimatedNumber value={agg.accumDep} format={fmtUSD} />} tone="wip"
             sub={agg.acq > 0 ? fmtPct(agg.accumDep / agg.acq) + " of capitalised" : "—"} />
@@ -487,7 +487,7 @@ export default function Analytics() {
           <Card title={year == null ? "Revenue by year" : "Revenue by month"} sub={periodLabel} span={2}>
             <BarChart data={revTrend} accent="var(--ready)" />
           </Card>
-          <Card title="Utilisation trend" sub={utilTrend.some((d) => d.projected) ? "NBV-weighted · dashed = projected from live long-term leases" : "NBV-weighted"} span={2}>
+          <Card title="Utilisation trend" sub={utilTrend.some((d) => d.projected) ? "CLP-weighted · dashed = projected from live long-term leases" : "CLP-weighted"} span={2}>
             <LineChart data={utilTrend} color="var(--lease)" />
           </Card>
 
@@ -562,7 +562,7 @@ export default function Analytics() {
           Assumptions — CLP per type/nacelle (2026), straight-line depreciation (Owned 25 yr→0; Long-term lease 40% CLP, 10 yr→0;
           Short-term leased TRs off balance-sheet). Utilisation: every day a unit is out of the pool —
           lease time, exchange turnaround, shop/overhaul and recertification all count — measured against its
-          in-service days; portfolio average is NBV-weighted.
+          in-service days; portfolio average is CLP-weighted.
         </p>
       </main>
     </div>
