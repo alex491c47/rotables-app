@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { AssetStore, AssetCalc, useAssets, assetsStatus } from '../data/assetStore';
 import { BusyOverlay } from '../components/Spinner';
 import { downloadXlsx } from '../lib/exportCsv';
-import { CITIES, FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
+import { FILTER_OPTIONS, fmtMoney, fmtDays } from '../data/mockData';
 import { AssetGlobe } from '../lib/globe';
 import { useTweaks, TweaksPanel, TweakSection, TweakToggle, TweakSlider } from '../components/TweaksPanel';
 import { getDark, saveDark } from '../lib/theme';
@@ -560,7 +560,7 @@ export default function Dashboard() {
     const seen = new Map();
     selected.history.forEach((h) => { if (h.to) seen.set(h.to, h.status); });
     selected.history.forEach((h) => { if (h.from && !seen.has(h.from)) seen.set(h.from, h.status); });
-    const names = [...seen.keys()];
+    const names = [...seen.keys()].filter((name) => AssetStore.cityMap()[name]);   // skip any city not in the map (avoids a crash)
     const markers = names.map((name) => ({
       lat: AssetStore.cityMap()[name].lat, lon: AssetStore.cityMap()[name].lon, label: name,
       status: name === selected.location ? selected.status : seen.get(name),

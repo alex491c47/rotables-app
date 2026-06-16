@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { NavLink } from 'react-router-dom';
 import { AssetStore, AssetCalc, useAssets, assetsStatus } from '../data/assetStore';
-import { CITIES, FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
+import { FILTER_OPTIONS, fmtMoney, COMMON_CUSTOMERS } from '../data/mockData';
 import { getDark, saveDark } from '../lib/theme';
 import { effectiveFinance } from '../lib/analyticsModel';
 import UserMenu from '../components/UserMenu';
@@ -33,12 +33,9 @@ const STATUS_META = {
 const CAT_COLOR = { out: "#38bdf8", in: "#a3e635", move: "#94a3b8", shop: "#64748b", end: "#64748b" };
 const OWN_TYPES = ["Owned", "Long-term lease", "Short-term lease"];
 const STATUSES = ["WIP", "Ready to ship", "Out on lease"];
-const CUSTOMERS = COMMON_CUSTOMERS;
 // dropdown options = customers known to the database (which were seeded from the
 // defaults) merged with the built-in list, so newly-added customers appear too
 const customerOptions = () => Array.from(new Set([...AssetStore.customerList(), ...COMMON_CUSTOMERS])).sort();
-const CITY_NAMES = Object.keys(CITIES).sort();
-const HUBS = CITY_NAMES.filter((c) => CITIES[c].type === "hub");
 const today = () => new Date().toISOString().slice(0, 10);
 
 const EVENT_TYPES = [
@@ -120,8 +117,10 @@ const EVENT_TYPES_SORTED = [...EVENT_TYPES].sort((a, b) => a.label.localeCompare
 // program-induction event carry customer, fee, contract and customer-location back
 // over even when the unit is sitting in our shop (status WIP) mid-program.
 function currentLeaseTerms(hist) {
+  const todayISO = new Date(NOW_MS).toISOString().slice(0, 10);
   for (let i = (hist || []).length - 1; i >= 0; i--) {
     const e = hist[i];
+    if (e.date > todayISO) continue;   // ignore scheduled future changes — use the terms in effect now
     if (e.contractType === "Long-term lease") {
       return { customer: e.customer || null, monthlyRevenue: e.monthlyRevenue != null ? e.monthlyRevenue : null, contractYears: e.contractYears || null, to: e.to || null, contractName: e.contractName || null };
     }
@@ -1013,10 +1012,13 @@ export default function Editor() {
     const next = AssetStore.recompute({ ...draft, history: [...draft.history, e] });
     setDraft({ ...next }); setDirty(true);
   };
+  // edit / retype / delete all recompute the draft (like append) so the status
+  // pill, location, current rate, per-event revenue/days and the next-step gating
+  // reflect the change immediately — not only after saving.
   const editEvent = (idx, patch) => {
     const hist = draft.history.map((h, i) => (i === idx ? { ...h, ...patch } : h));
-    const next = { ...draft, history: hist };
-    setDraft(next); setDirty(true);
+    const next = AssetStore.recompute({ ...draft, history: hist });
+    setDraft({ ...next }); setDirty(true);
   };
   const changeEventType = (idx, typeId) => {
     const t = EVENT_TYPES.find((x) => x.id === typeId);
@@ -1029,16 +1031,17 @@ export default function Editor() {
       n.monthlyRevenue = keep("monthlyRevenue") ? (h.monthlyRevenue != null ? h.monthlyRevenue : 0) : undefined;
       n.exchangeFee = keep("exchangeFee") ? (h.exchangeFee != null ? h.exchangeFee : 0) : undefined;
       n.recertFee = keep("recertFee") ? (h.recertFee != null ? h.recertFee : 0) : undefined;
+      n.salePrice = keep("salePrice") ? (h.salePrice != null ? h.salePrice : 0) : undefined;
       n.contractYears = keep("contractYears") ? (h.contractYears || null) : null;
-      if (!["dailyFee", "monthlyRevenue", "exchangeFee", "recertFee"].some(keep)) { n.revenue = 0; n.leaseDays = null; }
+      if (!["dailyFee", "monthlyRevenue", "exchangeFee", "recertFee", "salePrice"].some(keep)) { n.revenue = 0; n.leaseDays = null; }
       return n;
     });
-    const next = { ...draft, history: hist };
-    setDraft(next); setDirty(true);
+    const next = AssetStore.recompute({ ...draft, history: hist });
+    setDraft({ ...next }); setDirty(true);
   };
   const deleteEvent = (idx) => {
-    const next = { ...draft, history: draft.history.filter((_, i) => i !== idx) };
-    setDraft(next); setDirty(true);
+    const next = AssetStore.recompute({ ...draft, history: draft.history.filter((_, i) => i !== idx) });
+    setDraft({ ...next }); setDirty(true);
   };
 
   const [busy, setBusy] = useState(false);

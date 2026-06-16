@@ -59,7 +59,9 @@ function recompute(a) {
   ev.forEach((e, i) => {
     if (!AssetCalc.isRated(e)) return;
     if (e.cat === "out" && e.contractType !== "Exchange") e.leaseDays = AssetCalc.leaseDays(ev, i);
-    e.revenue = AssetCalc.revenue(e, e.leaseDays);
+    // don't recognise revenue for events that haven't happened yet — this also
+    // covers one-off fees (exchange / recert / sale) which aren't day-prorated.
+    e.revenue = e.date > TODAY_ISO ? 0 : AssetCalc.revenue(e, e.leaseDays);
   });
   a.initialPartNumber = a.initialPartNumber || (ev[0] && ev[0].pn) || a.partNumber || "";
   if (ev.length) {
@@ -357,9 +359,9 @@ export const AssetStore = {
   recompute,
 };
 
-/* Pull everyone's latest data every 10 minutes so people who leave the app open
+/* Pull everyone's latest data every 5 minutes so people who leave the app open
    see each other's changes (and don't duplicate or overwrite work unknowingly).
-   Runs once for the whole app; skips hidden tabs and any in-flight load (5 min). */
+   Runs once for the whole app; skips hidden tabs and any in-flight load. */
 let autoRefreshStarted = false;
 function startAutoRefresh() {
   if (autoRefreshStarted || typeof window === "undefined") return;
