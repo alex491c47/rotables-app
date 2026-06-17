@@ -68,7 +68,7 @@ const EVENT_TYPES = [
   { id: "reloc", label: "Relocation between hubs", evt: "Relocation", status: "Ready to ship", cat: "move", fields: ["to", "notes"], req: ["to"] },
   // End-of-use events — archive the asset (drops off the Register, kept in Analytics + historical view)
   { id: "return", label: "End of use — returned to lessor / lease ended", evt: "Returned — end of lease", status: "Returned", cat: "end", fields: ["notes"], req: [] },
-  { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Sold", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer"] },
+  { id: "sold", label: "End of use — sold outright to customer", evt: "Sold outright", status: "Sold", cat: "end", fields: ["customer", "salePrice", "notes"], req: ["customer", "salePrice"] },
   { id: "scrap", label: "End of use — scrapped for parts", evt: "Scrapped for parts", status: "Retired", cat: "end", fields: ["notes"], req: [] },
   { id: "destroyed", label: "End of use — write-off (damage / loss)", evt: "Write-off", status: "Destroyed", cat: "end", fields: ["notes"], req: [] },
 ];
@@ -494,7 +494,7 @@ function EventLogger({ asset, onAppend }) {
         {has("exchangeFee") && <Field label="Exchange fee (USD)" req={def.req.includes("exchangeFee")} hint={def.id.startsWith("ltlend") ? "optional — fee for taking over the other unit" : "recognised in the exchange month"}><MoneyInput className={cls("exchangeFee") + " mono"} value={f.exchangeFee} onChange={(v) => set("exchangeFee", v)} /></Field>}
         {has("pn") && <Field label="Part number received" req={def.req.includes("pn")} hint={def.id.startsWith("ltlend") ? "leave blank to keep your unit; enter a P/N to take over the overhauled one" : undefined}><input className={cls("pn") + " mono"} value={f.pn} onChange={(e) => set("pn", e.target.value)} placeholder={def.id.startsWith("ltlend") ? "optional new P/N" : "new P/N"} /></Field>}
         {has("recertFee") && <Field label="Recertification fee (USD)" hint="recognised as revenue (optional)"><MoneyInput className="input mono" value={f.recertFee} onChange={(v) => set("recertFee", v)} /></Field>}
-        {has("salePrice") && <Field label="Sale price (USD)" hint="one-off revenue on outright sale (optional)"><MoneyInput className="input mono" value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
+        {has("salePrice") && <Field label="Sale price (USD)" req={def.req.includes("salePrice")} hint="one-off revenue recognised on the outright sale"><MoneyInput className={cls("salePrice") + " mono"} value={f.salePrice} onChange={(v) => set("salePrice", v)} /></Field>}
         {has("contractName") && <Field label="Contract name" hint="the support contract this falls under — blank if outside any contract">
           <SuggestInput className="input" options={AssetStore.contractList()} showAll value={f.contractName} onChange={(v) => set("contractName", v)} placeholder="Select or type a contract…" /></Field>}
         {has("notes") && <Field label="Notes" span><textarea className="input" value={f.notes} onChange={(e) => set("notes", e.target.value)} placeholder={def.cat === "end" ? "Optional — reason / reference" : isLease ? "Optional — e.g. expected return / planning note" : "Optional note for the log"} /></Field>}
@@ -906,7 +906,7 @@ function NewAssetModal({ onClose, onCreate }) {
               <Picker className={sx("nacelle")} options={FILTER_OPTIONS.nacelle} value={a.nacelle} onChange={(v) => set("nacelle", v)} />
             </Field>
             <Field label="Initial part number" req><input className={cx("initialPartNumber") + " mono"} value={a.initialPartNumber} onChange={(e) => set("initialPartNumber", e.target.value)} /></Field>
-            <Field label="CLP (USD)" req hint="catalogue list price — guidance only"><MoneyInput className={cx("clp") + " mono"} value={a.clp} onChange={(v) => set("clp", v)} /></Field>
+            <Field label="CLP (USD)" req hint="catalogue list price — required (drives utilisation weighting)"><MoneyInput className={cx("clp") + " mono"} value={a.clp} onChange={(v) => set("clp", v)} /></Field>
             {capitalised && (
               <Field label="Acquisition value (USD)" req hint="NBV & depreciation are based on this"><MoneyInput className={cx("acquisitionValue") + " mono"} value={a.acquisitionValue} onChange={(v) => set("acquisitionValue", v)} /></Field>
             )}
